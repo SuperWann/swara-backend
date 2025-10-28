@@ -103,6 +103,10 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'user_id',
       as: 'watchHistory'
     });
+    User.hasMany(models.MatchResult, {
+      foreignKey: 'user_id',
+      as: 'matchResults'
+    });
   };
 
   User.prototype.toJSON = function () {

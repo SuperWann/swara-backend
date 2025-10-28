@@ -60,6 +60,7 @@ const startServer = async () => {
     const { sequelize } = require('./models');
     const seedInitialData = require('./seeders/init-data');
     const seedInspiraData = require('./seeders/inspira-data');
+    const seedAduSwaraData = require('./seeders/adu-swara-data');
     
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🚀 Starting Swara Backend Server...');
@@ -78,6 +79,7 @@ const startServer = async () => {
     // Seed initial data
     await seedInitialData(sequelize);
     await seedInspiraData(sequelize);
+    await seedAduSwaraData(sequelize);
 
     // Start server
     app.listen(PORT, () => {
