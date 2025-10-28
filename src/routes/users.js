@@ -1,0 +1,81 @@
+const express = require('express');
+const { body } = require('express-validator');
+const UserController = require('../controllers/users');
+const { auth, checkRole } = require('../middleware/auth');
+const { validate } = require('../middleware/validator');
+
+const router = express.Router();
+
+// Validation rules
+const registerValidation = [
+  body('full_name')
+    .trim()
+    .notEmpty().withMessage('Full name is required')
+    .isLength({ min: 2, max: 255 }).withMessage('Full name must be between 2-255 characters'),
+  body('email')
+    .trim()
+    .notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Invalid email format')
+    .normalizeEmail(),
+  body('password')
+    .notEmpty().withMessage('Password is required')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('phone_number')
+    .optional()
+    .matches(/^[0-9+\-\s()]*$/).withMessage('Invalid phone number format'),
+];
+
+const loginValidation = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Invalid email format')
+    .normalizeEmail(),
+  body('password')
+    .notEmpty().withMessage('Password is required')
+];
+
+const updateProfileValidation = [
+  body('full_name')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 255 }).withMessage('Full name must be between 2-255 characters'),
+  body('phone_number')
+    .optional()
+    .matches(/^[0-9+\-\s()]*$/).withMessage('Invalid phone number format'),
+  body('birth_date')
+    .optional()
+    .isDate().withMessage('Invalid date format'),
+  body('gender_id')
+    .optional()
+    .isInt().withMessage('Gender ID must be a number')
+];
+
+const changePasswordValidation = [
+  body('current_password')
+    .notEmpty().withMessage('Current password is required'),
+  body('new_password')
+    .notEmpty().withMessage('New password is required')
+    .isLength({ min: 6 }).withMessage('New password must be at least 6 characters')
+];
+
+const deleteAccountValidation = [
+  body('password')
+    .notEmpty().withMessage('Password is required')
+];
+
+// Public routes
+router.post('/register', registerValidation, validate, UserController.register);
+router.post('/login', loginValidation, validate, UserController.login);
+
+// Protected routes
+router.post('/logout', auth, UserController.logout);
+router.get('/profile', auth, UserController.getProfile);
+router.put('/profile', auth, updateProfileValidation, validate, UserController.updateProfile);
+router.put('/change-password', auth, changePasswordValidation, validate, UserController.changePassword);
+router.delete('/account', auth, deleteAccountValidation, validate, UserController.deleteAccount);
+
+// Admin routes
+router.get('/all', auth, checkRole('admin'), UserController.getAllUsers);
+
+module.exports = router;
