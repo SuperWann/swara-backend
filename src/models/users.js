@@ -100,6 +100,10 @@ module.exports = (sequelize, DataTypes) => {
       as: 'gender'
     });
     User.hasMany(models.Mentee, { foreignKey: 'user_id', as: 'mentees' });
+    User.hasMany(models.WatchHistory, {
+      foreignKey: 'user_id',
+      as: 'watchHistory'
+    });
   };
 
   User.prototype.toJSON = function () {
