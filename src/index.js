@@ -5,7 +5,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 
 // Middleware
 app.use(helmet());
@@ -23,11 +23,10 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Swara Backend API is running',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV
   });
 });
 
-// Import routes
 let routes;
 try {
   routes = require('./routes');
@@ -78,10 +77,10 @@ const startServer = async () => {
     console.log('✓ Database models synchronized');
 
     // Seed initial data
-    await seedInitialData(sequelize);
-    await seedInspiraData(sequelize);
-    await seedAduSwaraData(sequelize);
-    await seedPodiumData(sequelize);
+    // await seedInitialData(sequelize);
+    // await seedInspiraData(sequelize);
+    // await seedAduSwaraData(sequelize);
+    // await seedPodiumData(sequelize);
 
     // Start server
     app.listen(PORT, () => {

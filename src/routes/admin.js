@@ -8,5 +8,6 @@ const router = express.Router();
 
 // Admin routes
 router.get('/all', authenticateToken, checkRole('admin'), AdminController.getAllUsers);
+router.post('/mentor/register', authenticateToken, checkRole('admin'), AdminController.registerMentor);
 
 module.exports = router;

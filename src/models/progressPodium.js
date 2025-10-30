@@ -33,14 +33,6 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Sentence structure is required' }
       }
     },
-    category_id: {
-      type: DataTypes.BIGINT,
-      allowNull: false,
-      references: {
-        model: 'podium_categories',
-        key: 'podium_category_id'
-      }
-    },
     user_id: {
       type: DataTypes.BIGINT,
       allowNull: false,
@@ -55,18 +47,14 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.NOW
     }
   }, {
-    tableName: 'progress_podiums',
+    tableName: 'progress_podium',
     timestamps: false
   });
 
   ProgressPodium.associate = (models) => {
     ProgressPodium.belongsTo(models.User, {
       foreignKey: 'user_id',
-      as: 'user'
-    });
-    ProgressPodium.belongsTo(models.PodiumCategory, {
-      foreignKey: 'category_id',
-      as: 'category'
+      as: 'users'
     });
   };
 

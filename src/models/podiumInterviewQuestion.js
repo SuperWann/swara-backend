@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
   const PodiumInterviewQuestion = sequelize.define('PodiumInterviewQuestion', {
-    question_id: {
+    podium_interview_question_id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
       autoIncrement: true
@@ -21,7 +21,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: DataTypes.NOW
     },
-    category_id: {
+    podium_category_id: {
       type: DataTypes.BIGINT,
       allowNull: false,
       references: {
@@ -30,13 +30,13 @@ module.exports = (sequelize, DataTypes) => {
       }
     }
   }, {
-    tableName: 'podium_interview_questions',
+    tableName: 'podium_interview_questions', 
     timestamps: false
   });
 
   PodiumInterviewQuestion.associate = (models) => {
     PodiumInterviewQuestion.belongsTo(models.PodiumCategory, {
-      foreignKey: 'category_id',
+      foreignKey: 'podium_category_id', 
       as: 'category'
     });
   };

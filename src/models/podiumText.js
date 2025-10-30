@@ -17,7 +17,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: DataTypes.NOW
     },
-    category_id: {
+    podium_category_id: {
       type: DataTypes.BIGINT,
       allowNull: false,
       references: {
@@ -32,7 +32,7 @@ module.exports = (sequelize, DataTypes) => {
 
   PodiumText.associate = (models) => {
     PodiumText.belongsTo(models.PodiumCategory, {
-      foreignKey: 'category_id',
+      foreignKey: 'podium_category_id',
       as: 'category'
     });
   };

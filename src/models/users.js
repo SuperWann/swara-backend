@@ -119,6 +119,10 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'user_id',
       as: 'matchResults'
     });
+    User.hasMany(models.ProgressPodium, {
+      foreignKey: 'user_id',
+      as: 'progressPodium'
+    });
   };
 
   User.prototype.toJSON = function () {

@@ -11,7 +11,7 @@ const { Op } = require('sequelize');
 class UserController {
   static async register(req, res) {
     try {
-      const { full_name, email, password, phone_number, birth_date, address, gender_id } = req.body;
+      const { full_name, email, password, phone_number } = req.body;
 
       // Check if email already exists
       const existingUser = await User.findOne({ where: { email } });
@@ -34,9 +34,6 @@ class UserController {
         email,
         password,
         phone_number,
-        birth_date,
-        address,
-        gender_id,
         role_id: role.role_id
       });
 
