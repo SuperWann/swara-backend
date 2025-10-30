@@ -115,6 +115,10 @@ module.exports = (sequelize, DataTypes) => {
       as: 'watchHistory'
     });
     User.belongsToMany(models.Badge, { through: 'user_badges', foreignKey: 'user_id', otherKey: 'badge_id', as: 'badges' });
+    User.hasMany(models.MatchResult, {
+      foreignKey: 'user_id',
+      as: 'matchResults'
+    });
   };
 
   User.prototype.toJSON = function () {
