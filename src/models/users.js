@@ -70,6 +70,16 @@ module.exports = (sequelize, DataTypes) => {
         model: 'genders',
         key: 'gender_id'
       }
+    },
+    refreshToken: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'refresh_token' 
+    },
+    refreshTokenExpiresAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'refresh_token_expires_at'
     }
   }, {
     tableName: 'users',
@@ -99,11 +109,12 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'gender_id',
       as: 'gender'
     });
-    User.hasMany(models.Mentee, { foreignKey: 'user_id', as: 'mentees' });
+    User.hasMany(models.Mentee, { foreignKey: 'user_id', as: 'mentee' });
     User.hasMany(models.WatchHistory, {
       foreignKey: 'user_id',
       as: 'watchHistory'
     });
+    User.belongsToMany(models.Badge, { through: 'user_badges', foreignKey: 'user_id', otherKey: 'badge_id', as: 'badges' });
   };
 
   User.prototype.toJSON = function () {

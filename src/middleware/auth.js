@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { User, Role, Gender } = require('../models');
+const { verifyAccessToken } = require('../utils/tokenUtils');
 
 const auth = async (req, res, next) => {
   try {
@@ -72,4 +73,44 @@ const checkRole = (...roles) => {
   };
 };
 
-module.exports = { auth, checkRole };
+const authenticateToken = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access token is required'
+      });
+    }
+
+    try {
+      const decoded = verifyAccessToken(token);
+      req.user = decoded;
+      next();
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          success: false,
+          message: 'Access token has expired',
+          code: 'TOKEN_EXPIRED'
+        });
+      }
+      
+      return res.status(403).json({
+        success: false,
+        message: 'Invalid access token'
+      });
+    }
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Authentication failed',
+      error: error.message
+    });
+  }
+};
+
+module.exports = { auth, checkRole, authenticateToken };

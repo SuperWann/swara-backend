@@ -1,5 +1,11 @@
 const jwt = require('jsonwebtoken');
-const { User, Role, Gender } = require('../models');
+const { User, Role, Gender, Mentee, Badge } = require('../models');
+const {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken
+} = require('../utils/tokenUtils');
+const bcrypt = require('bcrypt');
 const { Op } = require('sequelize');
 
 class UserController {
@@ -34,6 +40,9 @@ class UserController {
         role_id: role.role_id
       });
 
+      // Create mentee
+      const mentee = await await Mentee.create({ user_id: user.user_id, point: 0, exercise_count: 0, minute_count: 0 });
+
       // Generate token
       const token = jwt.sign(
         { user_id: user.user_id },
@@ -54,6 +63,7 @@ class UserController {
         message: 'Registration successful',
         data: {
           user: userWithRelations,
+          mentee: mentee,
           token
         }
       });
@@ -78,17 +88,73 @@ class UserController {
   }
 
   // Login
+  // static async login(req, res) {
+  //   try {
+  //     const { email, password } = req.body;
+
+  //     // Find user
+  //     const user = await User.scope('withPassword').findOne({
+  //       where: { email },
+  //       include: [
+  //         { model: Role, as: 'role', attributes: ['role_id', 'role_name'] },
+  //         { model: Gender, as: 'gender', attributes: ['gender_id', 'gender'] }
+  //       ]
+  //     });
+
+  //     if (!user) {
+  //       return res.status(401).json({
+  //         success: false,
+  //         message: 'Invalid email or password'
+  //       });
+  //     }
+
+  //     // Compare password
+  //     const isPasswordValid = await user.comparePassword(password);
+  //     if (!isPasswordValid) {
+  //       return res.status(401).json({
+  //         success: false,
+  //         message: 'Invalid email or password'
+  //       });
+  //     }
+
+  //     // Generate token
+  //     const token = jwt.sign(
+  //       { user_id: user.user_id },
+  //       process.env.JWT_SECRET,
+  //       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+  //     );
+
+  //     res.json({
+  //       success: true,
+  //       message: 'Login successful',
+  //       data: {
+  //         user: user.toJSON(),
+  //         token
+  //       }
+  //     });
+  //   } catch (error) {
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Login failed',
+  //       error: error.message
+  //     });
+  //   }
+  // }
   static async login(req, res) {
     try {
       const { email, password } = req.body;
 
-      // Find user
-      const user = await User.scope('withPassword').findOne({
-        where: { email },
-        include: [
-          { model: Role, as: 'role', attributes: ['role_id', 'role_name'] },
-          { model: Gender, as: 'gender', attributes: ['gender_id', 'gender'] }
-        ]
+      // Validasi input
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email and password are required'
+        });
+      }
+
+      // Cari user dengan Sequelize
+      const user = await User.findOne({
+        where: { email }
       });
 
       if (!user) {
@@ -98,8 +164,9 @@ class UserController {
         });
       }
 
-      // Compare password
-      const isPasswordValid = await user.comparePassword(password);
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+
       if (!isPasswordValid) {
         return res.status(401).json({
           success: false,
@@ -107,22 +174,34 @@ class UserController {
         });
       }
 
-      // Generate token
-      const token = jwt.sign(
-        { user_id: user.user_id },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-      );
+      // Generate tokens
+      const accessToken = generateAccessToken(user);
+      const refreshToken = generateRefreshToken(user);
+
+      // Simpan refresh token ke database dengan Sequelize
+      const refreshTokenExpiresAt = new Date();
+      refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 7); // 7 hari
+
+      await user.update({
+        refreshToken: refreshToken,
+        refreshTokenExpiresAt: refreshTokenExpiresAt
+      });
 
       res.json({
         success: true,
         message: 'Login successful',
         data: {
-          user: user.toJSON(),
-          token
+          user: {
+            user_id: user.user_id,
+            email: user.email,
+            full_name: user.full_name,
+          },
+          accessToken,
+          refreshToken
         }
       });
     } catch (error) {
+      console.error('Login error:', error);
       res.status(500).json({
         success: false,
         message: 'Login failed',
@@ -132,16 +211,44 @@ class UserController {
   }
 
   // Logout
+  // static async logout(req, res) {
+  //   try {
+  //     // Dalam JWT stateless, logout dilakukan di client side dengan menghapus token
+  //     // Bisa tambahkan blacklist token jika diperlukan
+
+  //     res.json({
+  //       success: true,
+  //       message: 'Logout successful'
+  //     });
+  //   } catch (error) {
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Logout failed',
+  //       error: error.message
+  //     });
+  //   }
+  // }
   static async logout(req, res) {
     try {
-      // Dalam JWT stateless, logout dilakukan di client side dengan menghapus token
-      // Bisa tambahkan blacklist token jika diperlukan
+      const userId = req.user.user_id;
+
+      // Hapus refresh token dengan Sequelize
+      await User.update(
+        {
+          refreshToken: null,
+          refreshTokenExpiresAt: null
+        },
+        {
+          where: { user_id: userId }
+        }
+      );
 
       res.json({
         success: true,
-        message: 'Logout successful'
+        message: 'Logout successful. Please remove tokens from client.'
       });
     } catch (error) {
+      console.error('Logout error:', error);
       res.status(500).json({
         success: false,
         message: 'Logout failed',
@@ -150,13 +257,112 @@ class UserController {
     }
   }
 
+  // REFRESH TOKEN
+  static async refreshToken(req, res) {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        return res.status(401).json({
+          success: false,
+          message: 'Refresh token is required'
+        });
+      }
+
+      // Verify refresh token
+      let decoded;
+      try {
+        decoded = verifyRefreshToken(refreshToken);
+      } catch (error) {
+        return res.status(403).json({
+          success: false,
+          message: 'Invalid or expired refresh token'
+        });
+      }
+
+      // Check token di database dengan Sequelize
+      const user = await User.findOne({
+        where: {
+          user_id: decoded.user_id,
+          refreshToken: refreshToken,
+          refreshTokenExpiresAt: {
+            [Op.gt]: new Date() // greater than NOW()
+          }
+        }
+      });
+
+      if (!user) {
+        return res.status(403).json({
+          success: false,
+          message: 'Invalid refresh token or token has been revoked'
+        });
+      }
+
+      // Generate access token baru
+      const newAccessToken = generateAccessToken(user);
+
+      res.json({
+        success: true,
+        message: 'Token refreshed successfully',
+        data: {
+          accessToken: newAccessToken
+        }
+      });
+    } catch (error) {
+      console.error('Refresh token error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to refresh token',
+        error: error.message
+      });
+    }
+  }
+
+  static async getUserBadges(req, res) {
+    try {
+      const userId = req.params.user_id || req.user.user_id;
+
+      const user = await User.findByPk(userId, {
+        include: [
+          {
+            model: Badge,
+            as: 'badges',
+            through: { attributes: [] } // menyembunyikan kolom user badges (pivot)
+          }
+        ]
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Badges retrieved successfully',
+        count: user.badges.length,
+        data: user.badges,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get badges',
+        error: error.message,
+      });
+    }
+  }
+
+
   // Get Profile
   static async getProfile(req, res) {
     try {
       const user = await User.findByPk(req.user.user_id, {
         include: [
           { model: Role, as: 'role', attributes: ['role_id', 'role_name'] },
-          { model: Gender, as: 'gender', attributes: ['gender_id', 'gender'] }
+          { model: Gender, as: 'gender', attributes: ['gender_id', 'gender'] },
+          { model: Mentee, as: 'mentee', attributes: ['point', 'exercise_count', 'minute_count'] }
         ]
       });
 
@@ -309,58 +515,6 @@ class UserController {
       res.status(500).json({
         success: false,
         message: 'Failed to delete account',
-        error: error.message
-      });
-    }
-  }
-
-  // Get All Users (Admin)
-  static async getAllUsers(req, res) {
-    try {
-      const { page = 1, limit = 10, search = '' } = req.query;
-      const offset = (page - 1) * limit;
-
-      const whereClause = search ? {
-        [Op.or]: [
-          { full_name: { [Op.like]: `%${search}%` } },
-          { email: { [Op.like]: `%${search}%` } }
-        ]
-      } : {};
-
-      const { count, rows: users } = await User.findAndCountAll({
-        where: whereClause,
-        include: [
-          {
-            model: Role, as: 'role', attributes: ['role_id', 'role_name'], where: {
-              role_name: {
-                [Op.notIn]: ['admin', 'mentor'] 
-              }
-            }
-          },
-          { model: Gender, as: 'gender', attributes: ['gender_id', 'gender'] }
-        ],
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        order: [['created_at', 'DESC']]
-      });
-
-      res.json({
-        success: true,
-        message: 'Users retrieved successfully',
-        data: {
-          users,
-          pagination: {
-            total: count,
-            page: parseInt(page),
-            limit: parseInt(limit),
-            totalPages: Math.ceil(count / limit)
-          }
-        }
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get users',
         error: error.message
       });
     }
