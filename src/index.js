@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const serverless = require('serverless-http'); 
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -48,5 +47,4 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ✅ Wrap Express as serverless handler
-module.exports = serverless(app);
+module.exports = app;
