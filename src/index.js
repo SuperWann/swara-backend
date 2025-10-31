@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const serverless = require('serverless-http'); 
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -27,15 +28,11 @@ app.get('/', (req, res) => {
 });
 
 // Routes
-try {
-  const routes = require('./routes');
-  app.use('/api/swara', routes);
-} catch (error) {
-  console.warn('Routes not loaded yet:', error.message);
-}
+const routes = require('./routes');
+app.use('/api/swara', routes);
 
 // 404
-app.use((req, res) => {
+app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
     message: 'Route not found'
@@ -51,4 +48,5 @@ app.use((err, req, res, next) => {
   });
 });
 
-module.exports = app;
+// ✅ Wrap Express as serverless handler
+module.exports = serverless(app);
