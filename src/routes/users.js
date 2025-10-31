@@ -1,7 +1,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const UserController = require('../controllers/users');
-const { auth, checkRole } = require('../middleware/auth');
+const { auth, checkRole, authenticateToken } = require('../middleware/auth');
 const { validate } = require('../middleware/validator');
 
 const router = express.Router();
@@ -69,13 +69,11 @@ router.post('/register', registerValidation, validate, UserController.register);
 router.post('/login', loginValidation, validate, UserController.login);
 
 // Protected routes
-router.post('/logout', auth, UserController.logout);
-router.get('/profile', auth, UserController.getProfile);
-router.put('/profile', auth, updateProfileValidation, validate, UserController.updateProfile);
-router.put('/change-password', auth, changePasswordValidation, validate, UserController.changePassword);
-router.delete('/account', auth, deleteAccountValidation, validate, UserController.deleteAccount);
-
-// Admin routes
-router.get('/all', auth, checkRole('admin'), UserController.getAllUsers);
+router.post('/logout', authenticateToken, UserController.logout);
+router.get('/profile', authenticateToken, UserController.getProfile);
+router.put('/profile', authenticateToken, updateProfileValidation, validate, UserController.updateProfile);
+router.put('/change-password', authenticateToken, changePasswordValidation, validate, UserController.changePassword);
+router.delete('/account', authenticateToken, deleteAccountValidation, validate, UserController.deleteAccount);
+router.get('/badges', authenticateToken, UserController.getUserBadges);
 
 module.exports = router;

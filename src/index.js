@@ -23,11 +23,10 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Swara Backend API is running',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV
   });
 });
 
-// Import routes
 let routes;
 try {
   routes = require('./routes');
@@ -59,6 +58,9 @@ const startServer = async () => {
   try {
     const { sequelize } = require('./models');
     const seedInitialData = require('./seeders/init-data');
+    const seedInspiraData = require('./seeders/inspira-data');
+    const seedAduSwaraData = require('./seeders/adu-swara-data');
+    const seedPodiumData = require('./seeders/podium-data');
     
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🚀 Starting Swara Backend Server...');
@@ -76,6 +78,9 @@ const startServer = async () => {
 
     // Seed initial data
     await seedInitialData(sequelize);
+    await seedInspiraData(sequelize);
+    await seedAduSwaraData(sequelize);
+    await seedPodiumData(sequelize);
 
     // Start server
     app.listen(PORT, () => {
