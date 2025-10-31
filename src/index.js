@@ -15,7 +15,8 @@ app.use(morgan('dev'));
 // Health check 
 app.get('/', (req, res) => {
   res.json({
-    success: true, message: 'Swara Backend API is running',
+    success: true, 
+    message: 'Swara Backend API is running',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV
   });
@@ -38,8 +39,18 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error('Error:', err.stack);
   res.status(err.status || 500).json({
-    success: false, message: err.message || 'Internal server error'
+    success: false, 
+    message: err.message || 'Internal server error'
   });
 });
 
+// Export untuk Vercel
 module.exports = app;
+
+// Local development server
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
