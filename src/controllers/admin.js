@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { User, Role, Gender, Badge } = require('../models');
+const { User,ole, Gender, Badge } = require('../models');
 const { Op } = require('sequelize');
 
 class AdminController {
@@ -54,6 +54,7 @@ class AdminController {
       });
     }
   }
+
   static async registerMentor(req, res) {
     try {
       const { full_name, email, password, phone_number, gender_id, birth_date } = req.body;
