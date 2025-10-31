@@ -77,10 +77,10 @@ const startServer = async () => {
     console.log('✓ Database models synchronized');
 
     // Seed initial data
-    // await seedInitialData(sequelize);
-    // await seedInspiraData(sequelize);
-    // await seedAduSwaraData(sequelize);
-    // await seedPodiumData(sequelize);
+    await seedInitialData(sequelize);
+    await seedInspiraData(sequelize);
+    await seedAduSwaraData(sequelize);
+    await seedPodiumData(sequelize);
 
     // Start server
     app.listen(PORT, () => {

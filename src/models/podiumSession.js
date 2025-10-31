@@ -48,7 +48,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BIGINT,
       allowNull: true,
       references: {
-        model: 'progress_podiums',
+        model: 'progress_podium',
         key: 'progress_podium_id'
       },
       comment: 'Reference to progress after completion'
