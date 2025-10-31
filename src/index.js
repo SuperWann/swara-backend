@@ -5,7 +5,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(helmet());
