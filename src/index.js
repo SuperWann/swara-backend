@@ -5,7 +5,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(helmet());
@@ -77,10 +77,10 @@ const startServer = async () => {
     console.log('✓ Database models synchronized');
 
     // Seed initial data
-    // await seedInitialData(sequelize);
-    // await seedInspiraData(sequelize);
-    // await seedAduSwaraData(sequelize);
-    // await seedPodiumData(sequelize);
+    await seedInitialData(sequelize);
+    await seedInspiraData(sequelize);
+    await seedAduSwaraData(sequelize);
+    await seedPodiumData(sequelize);
 
     // Start server
     app.listen(PORT, () => {

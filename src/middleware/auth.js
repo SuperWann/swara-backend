@@ -73,7 +73,7 @@ const checkRole = (...roles) => {
   };
 };
 
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(' ')[1];
@@ -87,7 +87,34 @@ const authenticateToken = (req, res, next) => {
 
     try {
       const decoded = verifyAccessToken(token);
-      req.user = decoded;
+      
+      // Fetch user with role information from database
+      const user = await User.findByPk(decoded.user_id, {
+        include: [
+          {
+            model: Role,
+            as: 'role',
+            attributes: ['role_id', 'role_name']
+          }
+        ]
+      });
+
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      // Attach complete user object with role
+      req.user = {
+        user_id: user.user_id,
+        email: user.email,
+        full_name: user.full_name,
+        role_id: user.role_id,
+        role: user.role
+      };
+      
       next();
     } catch (error) {
       if (error.name === 'TokenExpiredError') {

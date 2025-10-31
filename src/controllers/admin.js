@@ -108,7 +108,4 @@ class AdminController {
   }
 }
 
-
-
-
-module.exports = { AdminController, registerMentor };
+module.exports = AdminController;
