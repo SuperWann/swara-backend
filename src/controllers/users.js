@@ -40,12 +40,18 @@ class UserController {
       // Create mentee
       const mentee = await await Mentee.create({ user_id: user.user_id, point: 0, exercise_count: 0, minute_count: 0 });
 
-      // Generate token
-      const token = jwt.sign(
-        { user_id: user.user_id },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-      );
+      // Generate tokens
+      const accessToken = generateAccessToken(user);
+      const refreshToken = generateRefreshToken(user);
+
+      // Simpan refresh token ke database dengan Sequelize
+      const refreshTokenExpiresAt = new Date();
+      refreshTokenExpiresAt.setDate(refreshTokenExpiresAt.getDate() + 7); // 7 hari
+
+      await user.update({
+        refreshToken: refreshToken,
+        refreshTokenExpiresAt: refreshTokenExpiresAt
+      });
 
       // Fetch user with relations
       const userWithRelations = await User.findByPk(user.user_id, {
@@ -61,7 +67,7 @@ class UserController {
         data: {
           user: userWithRelations,
           mentee: mentee,
-          token
+          accessToken,
         }
       });
     } catch (error) {
@@ -194,7 +200,6 @@ class UserController {
             full_name: user.full_name,
           },
           accessToken,
-          refreshToken
         }
       });
     } catch (error) {
