@@ -359,7 +359,9 @@ class UserController {
   // Get Profile
   static async getProfile(req, res) {
     try {
-      const user = await User.findByPk(req.user.user_id, {
+      const userId = req.params.user_id || req.user.user_id;
+
+      const user = await User.findByPk(userId, {
         include: [
           { model: Role, as: 'role', attributes: ['role_id', 'role_name'] },
           { model: Gender, as: 'gender', attributes: ['gender_id', 'gender'] },
