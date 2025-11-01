@@ -67,7 +67,6 @@ class UserController {
         data: {
           user: userWithRelations,
           mentee: mentee,
-          accessToken,
         }
       });
     } catch (error) {
