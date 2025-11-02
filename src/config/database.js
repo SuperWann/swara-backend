@@ -1,3 +1,5 @@
+const { ConnectionTimedOutError } = require('sequelize');
+
 require('dotenv').config();
 
 module.exports = {
