@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { User,ole, Gender, Badge } = require('../models');
+const { User, Role, Gender, Badge } = require('../models');
 const { Op } = require('sequelize');
 
 class AdminController {
