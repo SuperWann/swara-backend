@@ -1,4 +1,5 @@
 const bcrypt = require('bcrypt');
+const { seedSkorSwaraData } = require('./skor-swara-data');
 
 async function seedInitialData(sequelize) {
   const queryInterface = sequelize.getQueryInterface();
@@ -44,6 +45,10 @@ async function seedInitialData(sequelize) {
       }]);
       console.log('✓ Admin user created (email: admin@swara.com, password: admin123)');
     }
+
+    // Seed Skor Swara Topics
+    await seedSkorSwaraData();
+    console.log('✓ Skor Swara topics seeded');
 
     console.log('✓ Seeding completed successfully');
   } catch (error) {
