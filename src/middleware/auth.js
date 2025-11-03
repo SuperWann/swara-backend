@@ -140,4 +140,9 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
-module.exports = { auth, checkRole, authenticateToken };
+module.exports = { 
+  auth, 
+  checkRole, 
+  authenticateToken,
+  authenticate: authenticateToken  // alias for compatibility
+};
