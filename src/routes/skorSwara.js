@@ -53,6 +53,19 @@ const addTopicValidation = [
     .isLength({ min: 10 }).withMessage('Text must be at least 10 characters')
 ];
 
+const updateTopicValidation = [
+  body('topic')
+    .optional()
+    .isString().withMessage('Topic must be a string')
+    .trim()
+    .isLength({ min: 3, max: 255 }).withMessage('Topic must be between 3-255 characters'),
+  body('text')
+    .optional()
+    .isString().withMessage('Text must be a string')
+    .trim()
+    .isLength({ min: 10 }).withMessage('Text must be at least 10 characters')
+];
+
 router.use(auth);
 
 // Start new latihan session (get random topic)
@@ -79,5 +92,11 @@ router.get('/topics', SkorSwaraController.getAllTopics);
 
 // Add new topic
 router.post('/topics', addTopicValidation, validate, SkorSwaraController.addTopic);
+
+// Delete topic
+router.delete('/topics/:id', SkorSwaraController.deleteTopic);
+
+// Update topic
+router.put('/topics/:id', updateTopicValidation, validate, SkorSwaraController.updateTopic);
 
 module.exports = router;

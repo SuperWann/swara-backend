@@ -516,6 +516,86 @@ class SkorSwaraController {
       });
     }
   }
+
+  static async deleteTopic(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const { id } = req.params;
+
+      const topic = await SkorSwaraTopic.findByPk(id, { transaction });
+
+      if (!topic) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Topic not found",
+        });
+      }
+
+      await topic.destroy({ transaction });
+
+      await transaction.commit();
+
+      res.json({
+        success: true,
+        message: "Topic deleted successfully",
+      });
+    } catch (error) {
+      await transaction.rollback();
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete topic",
+        error: error.message,
+      });
+    }
+  }
+
+  static async updateTopic(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const { id } = req.params;
+      const { topic, text } = req.body; // Use req.body.topic and req.body.text
+
+      const topicToUpdate = await SkorSwaraTopic.findByPk(id, { transaction });
+
+      if (!topicToUpdate) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Topic not found",
+        });
+      }
+
+      await topicToUpdate.update(
+        {
+          topic: topic.trim(),
+          text: text.trim(),
+        },
+        { transaction }
+      );
+
+      await transaction.commit();
+
+      res.json({
+        success: true,
+        message: "Topic updated successfully",
+        data: {
+          skor_swara_topic_id: topicToUpdate.skor_swara_topic_id,
+          topic: topicToUpdate.topic,
+          text: topicToUpdate.text,
+        },
+      });
+    } catch (error) {
+      await transaction.rollback();
+      res.status(500).json({
+        success: false,
+        message: "Failed to update topic",
+        error: error.message,
+      });
+    }
+  }
 }
 
 module.exports = SkorSwaraController;

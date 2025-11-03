@@ -84,6 +84,8 @@ module.exports = (sequelize, DataTypes) => {
     SkorSwara.belongsTo(models.SkorSwaraTopic, {
       foreignKey: "skor_swara_topic_id",
       as: "skor_swara_topic",
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
     });
 
     SkorSwara.belongsTo(models.User, {

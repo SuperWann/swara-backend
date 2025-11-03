@@ -28,5 +28,12 @@ module.exports = (sequelize, DataTypes) => {
     }
   );
 
+  SkorSwaraTopic.associate = (models) => {
+    SkorSwaraTopic.hasMany(models.SkorSwara, {
+      foreignKey: "skor_swara_id",
+      as: "skor_swara",
+    });
+  };
+
   return SkorSwaraTopic;
 };
