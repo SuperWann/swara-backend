@@ -127,6 +127,18 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'user_id',
       as: 'podiumSession'
     });
+    User.hasOne(models.MentorProfile, {
+      foreignKey: 'user_id',
+      as: 'mentorProfile'
+    });
+    User.hasMany(models.Mentoring, {
+      foreignKey: 'mentor_user_id',
+      as: 'mentoringSessions'
+    });
+    User.hasMany(models.Mentoring, {
+      foreignKey: 'mentee_user_id',
+      as: 'menteeSessions'
+    });
   };
 
   User.prototype.toJSON = function () {

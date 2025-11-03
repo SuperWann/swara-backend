@@ -5,6 +5,7 @@ const inspiraRoutes = require('./inspira');
 const aduSwaraRoutes = require('./aduSwara');
 const podiumRoutes = require('./podium');
 const skorSwaraRoutes = require('./skorSwara');
+const mentoringRoutes = require('./mentoring');
 
 const router = express.Router();
 
@@ -14,6 +15,7 @@ router.use('/inspira-swara', inspiraRoutes);
 router.use('/adu-swara', aduSwaraRoutes);
 router.use('/podium', podiumRoutes);
 router.use('/skor-swara', skorSwaraRoutes);
+router.use('/latih-swara', mentoringRoutes);
 
 // Health check
 router.get('/health', (req, res) => {
