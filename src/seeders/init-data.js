@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const { seedSkorSwaraData } = require('./skor-swara-data');
+const seedMentoringData = require('./mentoring-data');
 
 async function seedInitialData(sequelize) {
   const queryInterface = sequelize.getQueryInterface();
@@ -49,6 +50,10 @@ async function seedInitialData(sequelize) {
     // Seed Skor Swara Topics
     await seedSkorSwaraData();
     console.log('✓ Skor Swara topics seeded');
+
+    // Seed Mentoring Data
+    await seedMentoringData();
+    console.log('✓ Mentoring data seeded');
 
     console.log('✓ Seeding completed successfully');
   } catch (error) {
