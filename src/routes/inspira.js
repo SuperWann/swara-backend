@@ -1,7 +1,7 @@
 const express = require('express');
 const { query, body } = require('express-validator');
 const InspiraController = require('../controllers/inspira');
-const { auth } = require('../middleware/auth');
+const { auth, checkRole, authenticateToken } = require('../middleware/auth');
 const { validate } = require('../middleware/validator');
 const { uploadVideo } = require('../config/cloudinary');
 
@@ -76,5 +76,11 @@ router.get('/:id', InspiraController.getDetailContent);
 
 // Add view count when user clicks/watches video
 router.post('/:id/view', InspiraController.addView);
+
+// Delete content
+router.delete('/:id', InspiraController.deleteContent);
+
+// Update content
+router.put('/:id', uploadVideo.single('video'), createContentValidation, validate, InspiraController.updateContent);
 
 module.exports = router;
