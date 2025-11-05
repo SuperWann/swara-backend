@@ -1,5 +1,7 @@
 const bcrypt = require('bcrypt');
 const { seedSkorSwaraData } = require('./skor-swara-data');
+const { seedModes } = require('./mode-data');
+const { seedImages } = require('./image-data');
 const seedMentoringData = require('./mentoring-data');
 
 async function seedInitialData(sequelize) {
@@ -47,9 +49,17 @@ async function seedInitialData(sequelize) {
       console.log('✓ Admin user created (email: admin@swara.com, password: admin123)');
     }
 
+    // Seed Skor Swara Modes
+    await seedModes();
+    console.log('✓ Skor Swara modes seeded');
+
     // Seed Skor Swara Topics
     await seedSkorSwaraData();
     console.log('✓ Skor Swara topics seeded');
+
+    // Seed Skor Swara Images
+    await seedImages();
+    console.log('✓ Skor Swara images seeded');
 
     // Seed Mentoring Data
     await seedMentoringData();
