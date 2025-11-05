@@ -455,10 +455,13 @@ class SkorSwaraController {
         order: [["skor_swara_topic_id", "ASC"]],
       });
 
+      const count = await SkorSwaraTopic.count();
+
       res.json({
         success: true,
         message: "Topics retrieved successfully",
         data: topics,
+        total_topics: count,
       });
     } catch (error) {
       res.status(500).json({
