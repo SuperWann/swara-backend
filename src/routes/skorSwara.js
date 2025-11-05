@@ -31,6 +31,20 @@ const submitHasilValidation = [
     .isString().withMessage('Ekspresi suggestion must be a string')
 ];
 
+const startLatihanValidation = [
+  body('mode_id')
+    .notEmpty().withMessage('Mode ID is required')
+    .isInt({ min: 1 }).withMessage('Mode ID must be a valid number'),
+  body('skor_swara_topic_id')
+    .optional()
+    .isInt({ min: 1 }).withMessage('Topic ID must be a valid number'),
+  body('custom_topic')
+    .optional()
+    .isString().withMessage('Custom topic must be a string')
+    .trim()
+    .isLength({ min: 3, max: 500 }).withMessage('Custom topic must be between 3-500 characters')
+];
+
 const paginationValidation = [
   query('page')
     .optional()
@@ -68,8 +82,14 @@ const updateTopicValidation = [
 
 router.use(auth);
 
-// Start new latihan session (get random topic)
-router.post('/start', SkorSwaraController.startLatihan);
+// Get all available modes
+router.get('/modes', SkorSwaraController.getAllModes);
+
+// Get mode detail by ID
+router.get('/modes/:id', SkorSwaraController.getModeDetail);
+
+// Start new latihan session with mode
+router.post('/start', startLatihanValidation, validate, SkorSwaraController.startLatihan);
 
 // Upload video and get AI analysis
 router.post(
