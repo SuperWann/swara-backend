@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { User, Role, Gender, Badge } = require('../models');
-const { Op } = require('sequelize');
+const { Op, fn, col, literal } = require('sequelize');
 
 class AdminController {
   // Get All Users (Admin)
@@ -103,6 +103,81 @@ class AdminController {
       res.status(500).json({
         success: false,
         message: 'Failed to register mentor',
+        error: error.message
+      });
+    }
+  }
+
+  static async deactivateAccount(req, res) {
+    try {
+      const user = await User.findByPk(req.params.id);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      user.status = 'nonaktif';
+
+      await user.save();
+      res.json({
+        success: true,
+        message: 'Account deactivated successfully'
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to deactivate account',
+        error: error.message
+      });
+    }
+  }
+
+  static async getUserDashboardStats(req, res) {
+    try {
+      // Total pengguna
+      const totalUsers = await User.count();
+
+      // Pengguna aktif (status ENUM)
+      const activeUsers = await User.count({
+        where: { status: "aktif" }
+      });
+
+      // Total mentor (join roles)
+      const totalMentors = await User.count({
+        include: [
+          {
+            model: Role,
+            as: "role",
+            where: { role_name: "mentor" },
+          },
+        ],
+      });
+
+      // Pengguna baru bulan ini
+      const newUsersThisMonth = await User.count({
+        where: literal(`
+        MONTH(created_at) = MONTH(NOW())
+        AND YEAR(created_at) = YEAR(NOW())
+      `)
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalUsers,
+          activeUsers,
+          totalMentors,
+          newUsersThisMonth,
+        },
+      });
+
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch dashboard statistics",
         error: error.message
       });
     }
