@@ -86,33 +86,38 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'level_content_swara_id',
       as: 'level'
     });
-    
+
     ContentSwara.belongsToMany(models.GayaPenyampaian, {
       through: 'gaya_penyampaian_contents',
       foreignKey: 'content_swara_id',
       otherKey: 'gaya_penyampaian_id',
       as: 'gayaPenyampaian'
     });
-    
+
     ContentSwara.belongsToMany(models.Struktur, {
       through: 'struktur_contents',
       foreignKey: 'content_swara_id',
       otherKey: 'struktur_id',
       as: 'struktur'
     });
-    
+
     ContentSwara.belongsToMany(models.TeknikPembuka, {
       through: 'teknik_pembuka_contents',
       foreignKey: 'content_swara_id',
       otherKey: 'teknik_pembuka_id',
       as: 'teknikPembuka'
     });
-    
+
     ContentSwara.belongsToMany(models.Tag, {
       through: 'tag_contents',
       foreignKey: 'content_swara_id',
       otherKey: 'tag_id',
       as: 'tags'
+    });
+
+    ContentSwara.hasMany(models.Transkrip, {
+      foreignKey: 'content_swara_id',
+      as: 'transkrip'
     });
 
     ContentSwara.hasMany(models.WatchHistory, {

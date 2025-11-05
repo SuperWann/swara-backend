@@ -28,5 +28,17 @@ module.exports = (sequelize, DataTypes) => {
     }
   );
 
+  SkorSwaraTopic.associate = (models) => {
+    SkorSwaraTopic.hasMany(models.SkorSwara, {
+      foreignKey: "skor_swara_topic_id",
+      as: "skor_swara",
+    });
+
+    SkorSwaraTopic.hasMany(models.SkorSwaraImage, {
+      foreignKey: "skor_swara_topic_id",
+      as: "images",
+    });
+  };
+
   return SkorSwaraTopic;
 };

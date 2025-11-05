@@ -80,6 +80,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: true,
       field: 'refresh_token_expires_at'
+    },
+    status: {
+      type: DataTypes.ENUM('aktif', 'nonaktif'),
+      allowNull: false,
+      defaultValue: 'aktif'
     }
   }, {
     tableName: 'users',

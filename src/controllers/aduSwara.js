@@ -491,10 +491,10 @@ class AduSwaraController {
           })),
           winner: winner
             ? {
-                user_id: winner.user_id,
-                full_name: winner.user.full_name,
-                point_earned: winner.point_earned,
-              }
+              user_id: winner.user_id,
+              full_name: winner.user.full_name,
+              point_earned: winner.point_earned,
+            }
             : null,
         },
       });
@@ -567,10 +567,10 @@ class AduSwaraController {
           status: isDraw ? "DRAW" : isWin ? "WIN" : "LOSE",
           opponent: opponentResult
             ? {
-                user_id: opponentResult.user.user_id,
-                full_name: opponentResult.user.full_name,
-                point_earned: opponentResult.point_earned,
-              }
+              user_id: opponentResult.user.user_id,
+              full_name: opponentResult.user.full_name,
+              point_earned: opponentResult.point_earned,
+            }
             : null,
         };
       });
@@ -658,6 +658,61 @@ class AduSwaraController {
         success: false,
         message: "Failed to get leaderboard",
         error: error.message,
+      });
+    }
+  }
+
+  static async createAduSwaraTopic(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const { title, adu_swara_category_id, keywords } = req.body;
+
+      if (!title || !adu_swara_category_id || !keywords) {
+        return res.status(400).json({
+          success: false,
+          message: "Title, category, and keywords are required"
+        });
+      }
+
+      // create topic
+      const topic = await AduSwaraTopic.create(
+        {
+          title,
+          adu_swara_category_id
+        },
+        { transaction }
+      );
+
+      // Process keywords (split by comma)
+      const keywordArray = keywords.split(",").map(k => k.trim()).filter(Boolean);
+
+      for (const word of keywordArray) {
+        // Check if keyword exists
+        const [keyword] = await Keyword.findOrCreate({
+          where: { keyword: word },
+          defaults: { keyword: word },
+          transaction
+        });
+
+        // Attach to pivot table
+        await topic.addKeyword(keyword, { transaction });
+      }
+
+      await transaction.commit();
+
+      return res.status(201).json({
+        success: true,
+        message: "Topic created successfully",
+        data: topic
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      return res.status(500).json({
+        success: false,
+        message: "Failed to create topic",
+        error: error.message
       });
     }
   }

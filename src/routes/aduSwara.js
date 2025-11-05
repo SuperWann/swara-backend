@@ -80,4 +80,7 @@ router.get('/history', AduSwaraController.getMatchHistory);
 // Get leaderboard
 router.get('/leaderboard', AduSwaraController.getLeaderboard);
 
+// Create new topic
+router.post('/topics', AduSwaraController.createAduSwaraTopic);
+
 module.exports = router;

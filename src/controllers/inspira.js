@@ -1,184 +1,256 @@
-const { ContentSwara, CategoryContentSwara, LevelContentSwara, User, GayaPenyampaian, GayaPenyampaianContent, Struktur, StrukturContent, TeknikPembuka, TeknikPembukaContent, Tag, TagContent, WatchHistory, sequelize } = require('../models');
+const { ContentSwara, CategoryContentSwara, LevelContentSwara, User, GayaPenyampaian, GayaPenyampaianContent, Struktur, StrukturContent, TeknikPembuka, TeknikPembukaContent, Tag, TagContent, WatchHistory, Transkrip, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { cloudinary } = require('../config/cloudinary');
 
+async function getOrCreateList(model, field, list, transaction) {
+  const ids = [];
+  for (const name of list) {
+    const [row] = await model.findOrCreate({
+      where: { [field]: name.trim() },
+      defaults: { [field]: name.trim() },
+      transaction
+    });
+    ids.push(row.id || row[`${field}_id`] || row.dataValues.id);
+  }
+  return ids;
+}
+
 class InspiraController {
+
+  // static async createContent(req, res) {
+  //   const transaction = await sequelize.transaction();
+
+  //   try {
+  //     const {
+  //       title,
+  //       description,
+  //       category_content_swara_id,
+  //       level_content_swara_id,
+  //       speaker,
+  //       video_duration,
+  //       gaya_penyampaian_ids,
+  //       struktur_ids,
+  //       teknik_pembuka_ids,
+  //       tag_ids
+  //     } = req.body;
+
+  //     // Validate required fields
+  //     if (!title || !description || !category_content_swara_id || !level_content_swara_id || !speaker || !video_duration) {
+  //       if (req.file) {
+  //         await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
+  //       }
+  //       await transaction.rollback();
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: 'Missing required fields'
+  //       });
+  //     }
+
+  //     // Check if video file is uploaded
+  //     if (!req.file) {
+  //       await transaction.rollback();
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: 'Video file is required'
+  //       });
+  //     }
+
+  //     // Verify category exists
+  //     const category = await CategoryContentSwara.findByPk(category_content_swara_id);
+  //     if (!category) {
+  //       await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
+  //       await transaction.rollback();
+  //       return res.status(404).json({
+  //         success: false,
+  //         message: 'Category not found'
+  //       });
+  //     }
+
+  //     // Verify level exists
+  //     const level = await LevelContentSwara.findByPk(level_content_swara_id);
+  //     if (!level) {
+  //       await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
+  //       await transaction.rollback();
+  //       return res.status(404).json({
+  //         success: false,
+  //         message: 'Level not found'
+  //       });
+  //     }
+
+  //     // Create content with video URL and thumbnail from Cloudinary
+  //     const content = await ContentSwara.create({
+  //       title,
+  //       description,
+  //       category_content_swara_id,
+  //       level_content_swara_id,
+  //       speaker,
+  //       video_duration,
+  //       url_video: req.file.path,
+  //       thumbnail: req.file.path.replace(/\.(mp4|mpeg|mov|avi|webm)$/, '.jpg'),
+  //       views: 0
+  //     }, { transaction });
+
+  //     // Add relationships if provided
+  //     if (gaya_penyampaian_ids) {
+  //       const gayaIds = JSON.parse(gaya_penyampaian_ids);
+  //       await content.setGayaPenyampaian(gayaIds, { transaction });
+  //     }
+
+  //     if (struktur_ids) {
+  //       const strukturIds = JSON.parse(struktur_ids);
+  //       await content.setStruktur(strukturIds, { transaction });
+  //     }
+
+  //     if (teknik_pembuka_ids) {
+  //       const teknikIds = JSON.parse(teknik_pembuka_ids);
+  //       await content.setTeknikPembuka(teknikIds, { transaction });
+  //     }
+
+  //     if (tag_ids) {
+  //       const tagIds = JSON.parse(tag_ids);
+  //       await content.setTags(tagIds, { transaction });
+  //     }
+
+  //     await transaction.commit();
+
+  //     // Fetch complete content with associations
+  //     const completeContent = await ContentSwara.findByPk(content.content_swara_id, {
+  //       include: [
+  //         {
+  //           model: CategoryContentSwara,
+  //           as: 'category',
+  //           attributes: ['category_content_swara_id', 'category_name']
+  //         },
+  //         {
+  //           model: LevelContentSwara,
+  //           as: 'level',
+  //           attributes: ['level_content_swara_id', 'level_name']
+  //         },
+  //         {
+  //           model: GayaPenyampaian,
+  //           as: 'gayaPenyampaian',
+  //           through: { attributes: [] },
+  //           attributes: ['gaya_penyampaian_id', 'gaya_penyampaian']
+  //         },
+  //         {
+  //           model: Struktur,
+  //           as: 'struktur',
+  //           through: { attributes: [] },
+  //           attributes: ['struktur_id', 'struktur']
+  //         },
+  //         {
+  //           model: TeknikPembuka,
+  //           as: 'teknikPembuka',
+  //           through: { attributes: [] },
+  //           attributes: ['teknik_pembuka_id', 'teknik_pembuka']
+  //         },
+  //         {
+  //           model: Tag,
+  //           as: 'tags',
+  //           through: { attributes: [] },
+  //           attributes: ['tag_id', 'tag_name']
+  //         }
+  //       ]
+  //     });
+
+  //     res.status(201).json({
+  //       success: true,
+  //       message: 'Content created successfully',
+  //       data: completeContent
+  //     });
+  //   } catch (error) {
+  //     await transaction.rollback();
+
+  //     // Delete uploaded video from Cloudinary if transaction fails
+  //     if (req.file) {
+  //       try {
+  //         await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
+  //       } catch (deleteError) {
+  //         console.error('Failed to delete video from Cloudinary:', deleteError);
+  //       }
+  //     }
+
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to create content',
+  //       error: error.message
+  //     });
+  //   }
+  // }
+
   static async createContent(req, res) {
     const transaction = await sequelize.transaction();
-    
+
     try {
       const {
-        title,
-        description,
-        category_content_swara_id,
-        level_content_swara_id,
-        speaker,
-        video_duration,
-        gaya_penyampaian_ids,
-        struktur_ids,
-        teknik_pembuka_ids,
-        tag_ids
+        title, thumbnail, url_video, description,
+        category_content_swara_id, level_content_swara_id,
+        speaker, video_duration,
+        transkrip,
+        gaya_penyampaian, struktur, teknik_pembuka
       } = req.body;
 
-      // Validate required fields
-      if (!title || !description || !category_content_swara_id || !level_content_swara_id || !speaker || !video_duration) {
-        if (req.file) {
-          await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
-        }
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: 'Missing required fields'
-        });
-      }
-
-      // Check if video file is uploaded
-      if (!req.file) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: 'Video file is required'
-        });
-      }
-
-      // Verify category exists
-      const category = await CategoryContentSwara.findByPk(category_content_swara_id);
-      if (!category) {
-        await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
-        await transaction.rollback();
-        return res.status(404).json({
-          success: false,
-          message: 'Category not found'
-        });
-      }
-
-      // Verify level exists
-      const level = await LevelContentSwara.findByPk(level_content_swara_id);
-      if (!level) {
-        await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
-        await transaction.rollback();
-        return res.status(404).json({
-          success: false,
-          message: 'Level not found'
-        });
-      }
-
-      // Create content with video URL and thumbnail from Cloudinary
+      // 1) Create content
       const content = await ContentSwara.create({
-        title,
-        description,
-        category_content_swara_id,
-        level_content_swara_id,
-        speaker,
-        video_duration,
-        url_video: req.file.path,
-        thumbnail: req.file.path.replace(/\.(mp4|mpeg|mov|avi|webm)$/, '.jpg'),
-        views: 0
+        title, thumbnail, url_video, description,
+        category_content_swara_id, level_content_swara_id,
+        speaker, video_duration
       }, { transaction });
 
-      // Add relationships if provided
-      if (gaya_penyampaian_ids) {
-        const gayaIds = JSON.parse(gaya_penyampaian_ids);
-        await content.setGayaPenyampaian(gayaIds, { transaction });
-      }
-
-      if (struktur_ids) {
-        const strukturIds = JSON.parse(struktur_ids);
-        await content.setStruktur(strukturIds, { transaction });
-      }
-
-      if (teknik_pembuka_ids) {
-        const teknikIds = JSON.parse(teknik_pembuka_ids);
-        await content.setTeknikPembuka(teknikIds, { transaction });
-      }
-
-      if (tag_ids) {
-        const tagIds = JSON.parse(tag_ids);
-        await content.setTags(tagIds, { transaction });
-      }
-
-      await transaction.commit();
-
-      // Fetch complete content with associations
-      const completeContent = await ContentSwara.findByPk(content.content_swara_id, {
-        include: [
-          {
-            model: CategoryContentSwara,
-            as: 'category',
-            attributes: ['category_content_swara_id', 'category_name']
-          },
-          {
-            model: LevelContentSwara,
-            as: 'level',
-            attributes: ['level_content_swara_id', 'level_name']
-          },
-          {
-            model: GayaPenyampaian,
-            as: 'gayaPenyampaian',
-            through: { attributes: [] },
-            attributes: ['gaya_penyampaian_id', 'gaya_penyampaian']
-          },
-          {
-            model: Struktur,
-            as: 'struktur',
-            through: { attributes: [] },
-            attributes: ['struktur_id', 'struktur']
-          },
-          {
-            model: TeknikPembuka,
-            as: 'teknikPembuka',
-            through: { attributes: [] },
-            attributes: ['teknik_pembuka_id', 'teknik_pembuka']
-          },
-          {
-            model: Tag,
-            as: 'tags',
-            through: { attributes: [] },
-            attributes: ['tag_id', 'tag_name']
-          }
-        ]
-      });
-
-      res.status(201).json({
-        success: true,
-        message: 'Content created successfully',
-        data: completeContent
-      });
-    } catch (error) {
-      await transaction.rollback();
-      
-      // Delete uploaded video from Cloudinary if transaction fails
-      if (req.file) {
-        try {
-          await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
-        } catch (deleteError) {
-          console.error('Failed to delete video from Cloudinary:', deleteError);
+      // 2) Insert Transkrip
+      if (Array.isArray(transkrip)) {
+        for (const t of transkrip) {
+          await Transkrip.create({
+            waktu: t.waktu,
+            transkrip: t.transkrip,
+            content_swara_id: content.content_swara_id
+          }, { transaction });
         }
       }
 
-      res.status(500).json({
-        success: false,
-        message: 'Failed to create content',
-        error: error.message
-      });
+      // Convert string → array kalau user kirim "A, B"
+      const toArray = v => Array.isArray(v) ? v : (v || "").split(",").map(x => x.trim());
+
+      const gayaArr = toArray(gaya_penyampaian);
+      const strukturArr = toArray(struktur);
+      const teknikArr = toArray(teknik_pembuka);
+
+      // 3) Get or Create list for many-to-many
+      const gayaIDs = await getOrCreateList(GayaPenyampaian, 'gaya_penyampaian', gayaArr, transaction);
+      const strukturIDs = await getOrCreateList(Struktur, 'struktur', strukturArr, transaction);
+      const teknikIDs = await getOrCreateList(TeknikPembuka, 'teknik_pembuka', teknikArr, transaction);
+
+      // 4) Attach bridges/pivot
+      await content.setGayaPenyampaian(gayaIDs, { transaction });
+      await content.setStruktur(strukturIDs, { transaction });
+      await content.setTeknikPembuka(teknikIDs, { transaction });
+
+      await transaction.commit();
+      return res.status(201).json({ success: true, message: "Content & relation created" });
+
+    } catch (error) {
+      await transaction.rollback();
+      return res.status(500).json({ success: false, message: "Failed", error: error.message });
     }
   }
+
+
   static async getAllContent(req, res) {
     try {
-      const { 
-        page = 1, 
-        limit = 10, 
-        q = '', 
+      const {
+        page = 1,
+        limit = 10,
+        q = '',
         category_id,
         level_id,
         sort_by = 'views',
         order = 'DESC'
       } = req.query;
-      
+
       const offset = (page - 1) * limit;
 
       const whereClause = {};
-      
+
       if (q) {
         whereClause[Op.or] = [
           { title: { [Op.like]: `%${q}%` } },
@@ -303,11 +375,11 @@ class InspiraController {
 
   static async addView(req, res) {
     const transaction = await sequelize.transaction();
-    
+
     try {
       const { id } = req.params;
       const userId = req.user.user_id;
-      
+
       const watch_duration = req.body?.watch_duration || null;
       const is_completed = req.body?.is_completed || false;
 
@@ -411,6 +483,87 @@ class InspiraController {
       res.status(500).json({
         success: false,
         message: 'Failed to get watch history',
+        error: error.message
+      });
+    }
+  }
+
+  static async deleteContent(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      if (!req.user || !req.user.user_id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: Please login first"
+        });
+      }
+
+      const { id } = req.params;
+
+      const content = await ContentSwara.findByPk(id);
+      if (!content) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Content not found"
+        });
+      }
+
+      await content.destroy({ transaction });
+      await transaction.commit();
+
+      return res.json({
+        success: true,
+        message: "Content deleted successfully"
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      return res.status(500).json({
+        success: false,
+        message: "Failed to delete content",
+        error: error.message
+      });
+    }
+  }
+
+  static async updateContent(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      if (!req.user || !req.user.user_id) {
+        return res.status(401).json({
+          success: false,
+          message: "Unauthorized: Please login first"
+        });
+      }
+
+      const { id } = req.params;
+
+      const content = await ContentSwara.findByPk(id);
+      if (!content) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Content not found"
+        });
+      }
+
+      await content.update(req.body, { transaction });
+      await transaction.commit();
+
+      return res.json({
+        success: true,
+        message: "Content updated successfully",
+        data: content
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update content",
         error: error.message
       });
     }

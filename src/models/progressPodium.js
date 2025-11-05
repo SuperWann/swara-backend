@@ -41,6 +41,14 @@ module.exports = (sequelize, DataTypes) => {
         key: 'user_id'
       }
     },
+    podium_category_id: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+      references: {
+        model: 'podium_categories',
+        key: 'podium_category_id'
+      }
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -55,6 +63,11 @@ module.exports = (sequelize, DataTypes) => {
     ProgressPodium.belongsTo(models.User, {
       foreignKey: 'user_id',
       as: 'users'
+    });
+    
+    ProgressPodium.belongsTo(models.PodiumCategory, {
+      foreignKey: 'podium_category_id',
+      as: 'category'
     });
   };
 

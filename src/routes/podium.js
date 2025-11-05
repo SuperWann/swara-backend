@@ -6,6 +6,12 @@ const { validate } = require('../middleware/validator');
 
 const router = express.Router();
 
+const startPodiumValidation = [
+  body('podium_category_id')
+    .notEmpty().withMessage('Category ID is required')
+    .isInt({ min: 1 }).withMessage('Category ID must be a valid number')
+];
+
 const submitResultValidation = [
   body('session_id')
     .notEmpty().withMessage('Session ID is required')
@@ -35,8 +41,14 @@ const paginationValidation = [
 
 router.use(auth);
 
-// Start new podium session (get random category and content)
-router.post('/start', PodiumController.startPodium);
+// Get Podium categories (must be before /categories/:id)
+router.get('/categories', PodiumController.getCategories);
+
+// Get Podium Category Details
+router.get('/categories/:id', PodiumController.getCategoryDetail);
+
+// Start new podium session with selected category
+router.post('/start', startPodiumValidation, validate, PodiumController.startPodium);
 
 // Submit podium result
 router.post('/submit', submitResultValidation, validate, PodiumController.submitPodiumResult);

@@ -8,11 +8,98 @@ const {
 } = require('../models');
 
 class PodiumController {
+  static async getCategories(req, res) {
+    try {
+      const categories = await PodiumCategory.findAll({
+        attributes: ['podium_category_id', 'podium_category', 'is_interview'],
+        order: [['podium_category', 'ASC']]
+      });
+
+      if (categories.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No categories available'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Categories retrieved successfully',
+        data: {
+          total: categories.length,
+          categories
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get categories',
+        error: error.message
+      });
+    }
+  }
+
+  static async getCategoryDetail(req, res) {
+    try {
+      const { id } = req.params;
+
+      const category = await PodiumCategory.findByPk(id, {
+        attributes: ['podium_category_id', 'podium_category', 'is_interview']
+      });
+
+      if (!category) {
+        return res.status(404).json({
+          success: false,
+          message: 'Category not found'
+        });
+      }
+
+      // Count available content for this category
+      let contentCount = 0;
+      if (category.is_interview) {
+        contentCount = await PodiumInterviewQuestion.count({
+          where: { podium_category_id: id }
+        });
+      } else {
+        contentCount = await PodiumText.count({
+          where: { podium_category_id: id }
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Category detail retrieved successfully',
+        data: {
+          ...category.toJSON(),
+          available_content: contentCount
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get category detail',
+        error: error.message
+      });
+    }
+  }
+
   static async startPodium(req, res) {
     const transaction = await sequelize.transaction();
     
     try {
       const userId = req.user.user_id;
+      const { podium_category_id } = req.body;
+
+      // Validate podium_category_id is provided
+      if (!podium_category_id) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: 'Category ID is required'
+        });
+      }
+
+      // Check for active session
       const activeSession = await PodiumSession.findOne({
         where: { user_id: userId, status: 'active' }
       });
@@ -29,23 +116,24 @@ class PodiumController {
         });
       }
 
-      const categories = await PodiumCategory.findAll();
-      if (categories.length === 0) {
+      // Get selected category
+      const selectedCategory = await PodiumCategory.findByPk(podium_category_id);
+      
+      if (!selectedCategory) {
         await transaction.rollback();
         return res.status(404).json({
           success: false,
-          message: 'No categories available'
+          message: 'Category not found'
         });
       }
 
-      const randomCategory = categories[Math.floor(Math.random() * categories.length)];
-      const sessionType = randomCategory.is_interview ? 'interview' : 'speech';
+      const sessionType = selectedCategory.is_interview ? 'interview' : 'speech';
       let contentData = {};
 
-      if (randomCategory.is_interview) {
+      if (selectedCategory.is_interview) {
         const questions = await PodiumInterviewQuestion.findAll({
-          where: { category_id: randomCategory.podium_category_id },
-          attributes: ['question_id', 'question'],
+          where: { podium_category_id: selectedCategory.podium_category_id },
+          attributes: ['podium_interview_question_id', 'question'],
           order: sequelize.random(),
           limit: 5
         });
@@ -61,7 +149,7 @@ class PodiumController {
         contentData = { questions: questions.map(q => q.toJSON()) };
       } else {
         const text = await PodiumText.findOne({
-          where: { category_id: randomCategory.podium_category_id },
+          where: { podium_category_id: selectedCategory.podium_category_id },
           attributes: ['podium_text_id', 'podium_text'],
           order: sequelize.random()
         });
@@ -79,7 +167,7 @@ class PodiumController {
 
       const session = await PodiumSession.create({
         user_id: userId,
-        category_id: randomCategory.podium_category_id,
+        podium_category_id: selectedCategory.podium_category_id,
         session_type: sessionType,
         content_data: contentData,
         status: 'active',
@@ -93,9 +181,9 @@ class PodiumController {
         message: 'Podium session started successfully',
         data: {
           session_id: session.session_id,
-          category_id: randomCategory.podium_category_id,
-          category_name: randomCategory.podium_category,
-          is_interview: randomCategory.is_interview,
+          podium_category_id: selectedCategory.podium_category_id,
+          category_name: selectedCategory.podium_category,
+          is_interview: selectedCategory.is_interview,
           type: sessionType,
           started_at: session.started_at,
           ...contentData
@@ -151,7 +239,7 @@ class PodiumController {
 
       const progress = await ProgressPodium.create({
         user_id: userId,
-        category_id: session.category_id,
+        podium_category_id: session.podium_category_id,
         self_confidence,
         time_management,
         audiens_interest,
