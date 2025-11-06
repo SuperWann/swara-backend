@@ -1,4 +1,5 @@
 const bcrypt = require('bcrypt');
+const { model } = require('../services/chatgptService');
 
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
@@ -143,6 +144,18 @@ module.exports = (sequelize, DataTypes) => {
     User.hasMany(models.Mentoring, {
       foreignKey: 'mentee_user_id',
       as: 'menteeSessions'
+    });
+    User.hasMany(models.MentoringPayment, {
+      foreignKey: 'user_id',
+      as: 'mentoringPayments'
+    });
+    User.hasMany(models.SkorSwara, {
+      foreignKey: 'user_id',
+      as: 'skorSwara'
+    });
+    User.hasMany(models.MentorActivity, {
+      foreignKey: 'user_id',
+      as: 'mentorActivities'
     });
   };
 

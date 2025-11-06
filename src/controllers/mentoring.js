@@ -7,6 +7,7 @@ const MentorProfile = db.MentorProfile;
 const Mentoring = db.Mentoring;
 const MetodeMentoring = db.MetodeMentoring;
 const MentoringPayment = db.MentoringPayment;
+const MentorActivity = db.MentorActivity;
 
 /**
  * Get semua mentor
@@ -14,9 +15,9 @@ const MentoringPayment = db.MentoringPayment;
 exports.getAllMentors = async (req, res) => {
   try {
     const { page = 1, limit = 10, search, position, minFee, maxFee } = req.query;
-    
+
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    
+
     // Build where clause
     const whereClause = {};
 
@@ -89,7 +90,12 @@ exports.getMentorDetail = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['user_id', 'full_name', 'email', 'phone_number', 'birth_date', 'address']
+        attributes: ['user_id', 'full_name', 'email', 'phone_number', 'birth_date', 'address'],
+        include: [{
+          model: MentorActivity,
+          as: 'mentorActivities',
+          attributes: ['mentor_activity_id', 'judul_aktivitas', 'deskripsi', 'created_at']
+        }]
       }]
     });
 
@@ -141,7 +147,7 @@ exports.getMentorDetail = async (req, res) => {
  */
 exports.scheduleMentoring = async (req, res) => {
   const transaction = await db.sequelize.transaction();
-  
+
   try {
     const userId = req.user.user_id;
     const { mentor_user_id, jadwal, tujuan_mentoring, metode_mentoring_id } = req.body;
@@ -347,7 +353,7 @@ exports.getUserMentoringSessions = async (req, res) => {
     const categorizedSessions = sessions.map(session => {
       const sessionDate = new Date(session.jadwal);
       let sessionStatus = 'scheduled';
-      
+
       if (session.payment && session.payment.transaction_status === 'settlement') {
         if (sessionDate < now) {
           sessionStatus = 'completed';
@@ -439,7 +445,7 @@ exports.getMentoringDetail = async (req, res) => {
     const now = new Date();
     const sessionDate = new Date(session.jadwal);
     let sessionStatus = 'scheduled';
-    
+
     if (session.payment && session.payment.transaction_status === 'settlement') {
       if (sessionDate < now) {
         sessionStatus = 'completed';
@@ -564,8 +570,8 @@ exports.checkPaymentStatus = async (req, res) => {
       payment_type: status.paymentType,
       transaction_id: status.transactionId,
       fraud_status: status.fraudStatus,
-      paid_at: (status.transactionStatus === 'settlement' || status.transactionStatus === 'capture') 
-        ? new Date() 
+      paid_at: (status.transactionStatus === 'settlement' || status.transactionStatus === 'capture')
+        ? new Date()
         : mentoring.payment.paid_at
     });
 

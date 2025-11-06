@@ -716,6 +716,98 @@ class AduSwaraController {
       });
     }
   }
+
+  static async deleteAduSwaraTopic(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const { id } = req.params;
+
+      const topic = await AduSwaraTopic.findByPk(id, { transaction });
+
+      if (!topic) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Topic not found"
+        });
+      }
+
+      await topic.destroy({ transaction });
+      await transaction.commit();
+
+      return res.json({
+        success: true,
+        message: "Topic deleted successfully"
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      return res.status(500).json({
+        success: false,
+        message: "Failed to delete topic",
+        error: error.message
+      });
+    }
+  }
+
+  static async updateAduSwaraTopic(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const { id } = req.params;
+      const { title, adu_swara_category_id, keywords } = req.body;
+
+      const topic = await AduSwaraTopic.findByPk(id, { transaction });
+
+      if (!topic) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Topic not found"
+        });
+      }
+
+      await topic.update(
+        {
+          title,
+          adu_swara_category_id
+        },
+        { transaction }
+      );
+
+      // Process keywords (split by comma)
+      const keywordArray = keywords.split(",").map(k => k.trim()).filter(Boolean);
+
+      for (const word of keywordArray) {
+        // Check if keyword exists
+        const [keyword] = await Keyword.findOrCreate({
+          where: { keyword: word },
+          defaults: { keyword: word },
+          transaction
+        });
+
+        // Attach to pivot table
+        await topic.addKeyword(keyword, { transaction });
+      }
+
+      await transaction.commit();
+
+      return res.json({
+        success: true,
+        message: "Topic updated successfully",
+        data: topic
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update topic",
+        error: error.message
+      });
+    }
+  }
 }
 
 module.exports = AduSwaraController;
