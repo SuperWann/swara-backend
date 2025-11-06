@@ -6,6 +6,7 @@ const aduSwaraRoutes = require('./aduSwara');
 const podiumRoutes = require('./podium');
 const skorSwaraRoutes = require('./skorSwara');
 const mentoringRoutes = require('./mentoring');
+const basicTrainingRoutes = require('./basicTraining');
 const mentorRoutes = require('./mentor');
 
 const router = express.Router();
@@ -17,6 +18,7 @@ router.use('/adu-swara', aduSwaraRoutes);
 router.use('/podium', podiumRoutes);
 router.use('/skor-swara', skorSwaraRoutes);
 router.use('/latih-swara', mentoringRoutes);
+router.use('/basic-training', basicTrainingRoutes);
 router.use('/mentor', mentorRoutes)
 
 // Health check
