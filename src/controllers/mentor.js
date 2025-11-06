@@ -44,6 +44,57 @@ class MentorController {
         }
     }
 
+    static async updateActivity(req, res) {
+        try {
+            const { id } = req.params;
+            const { judul_aktivitas, deskripsi } = req.body;
+            const [updated] = await MentorActivity.update(
+                { judul_aktivitas, deskripsi },
+                { where: { mentor_activity_id: id } }
+            );
+            if (updated) {
+                res.json({
+                    success: true,
+                    message: 'Activity updated successfully',
+                    data: { id, judul_aktivitas, deskripsi }
+                });
+            } else {
+                res.status(404).json({
+                    success: false,
+                    message: 'Activity not found',
+                });
+            }
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                message: 'Failed to update activity',
+                error: error.message
+            });
+        }
+    }
+    static async deleteActivity(req, res) {
+        try {
+            const { id } = req.params;
+            const deleted = await MentorActivity.destroy({ where: { mentor_activity_id: id } });
+            if (deleted) {
+                res.json({
+                    success: true,
+                    message: 'Activity deleted successfully',
+                });
+            } else {
+                res.status(404).json({
+                    success: false,
+                    message: 'Activity not found',
+                });
+            }
+        } catch (error) {
+            res.status(500).json({
+                success: false,
+                message: 'Failed to delete activity',
+                error: error.message
+            });
+        }
+    }
 }
 
 module.exports = MentorController;
