@@ -41,6 +41,14 @@ const paginationValidation = [
 
 router.use(auth);
 
+// Create Podium Text
+router.post('/create', PodiumController.createPodiumText);
+
+router.get('/podiumCategories', PodiumController.getPodiumCategories);  
+
+// Get Podium texts by category
+router.get('/podiumTextsByCategory/:id', PodiumController.getPodiumTextsByCategory);
+
 // Get Podium categories (must be before /categories/:id)
 router.get('/categories', PodiumController.getCategories);
 

@@ -396,6 +396,67 @@ class PodiumController {
       });
     }
   }
+
+  static async getPodiumCategories(req, res) {
+    try {
+      const categories = await PodiumCategory.findAll({
+        attributes: ['podium_category_id', 'podium_category'],
+        order: [['podium_category', 'ASC']]
+      });
+
+      res.json({
+        success: true,
+        message: 'Podium categories retrieved successfully',
+        data: categories
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get podium categories',
+        error: error.message
+      });
+    }
+  }
+
+  static async createPodiumText(req, res) {
+    try {
+      const { podium_category_id, podium_text } = req.body;
+      const newText = await PodiumText.create({ podium_category_id, podium_text, created_at: new Date() });
+
+      res.status(201).json({
+        success: true,
+        message: 'Podium text created successfully',
+        data: newText
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create podium text',
+        error: error.message
+      });
+    }
+  }
+
+  static async getPodiumTextsByCategory(req, res) {
+    try {
+      const { id } = req.params;
+      const podiumTexts = await PodiumText.findAll({
+        where: { podium_category_id: id }
+      });
+
+      res.json({
+        success: true,
+        message: 'Podium texts retrieved successfully',
+        data: podiumTexts
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get podium texts',
+        error: error.message
+      });
+    }
+  }
 }
 
 module.exports = PodiumController;
