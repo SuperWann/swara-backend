@@ -7,7 +7,9 @@ const router = express.Router();
 
 // Admin routes
 router.get('/all', authenticateToken, AdminController.getAllUsers);
-router.get('/userStats', authenticateToken, AdminController.getUserDashboardStats);
+router.get('/dashboardStats', authenticateToken, AdminController.getStatsDashboardAdmin);
+router.get('/userStats', authenticateToken, AdminController.getStatsManajemenPengguna);
+router.get('/podiumStats', authenticateToken, AdminController.getPodiumStats);
 router.post('/mentor/register', authenticateToken, AdminController.registerMentor);
 router.put('/deactivate/:id',
     authenticateToken,

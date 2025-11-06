@@ -83,4 +83,10 @@ router.get('/leaderboard', AduSwaraController.getLeaderboard);
 // Create new topic
 router.post('/topics', AduSwaraController.createAduSwaraTopic);
 
+// Delete topic
+router.delete('/topics/:id', AduSwaraController.deleteAduSwaraTopic);
+
+// Update topic
+router.put('/topics/:id', AduSwaraController.updateAduSwaraTopic);
+
 module.exports = router;
