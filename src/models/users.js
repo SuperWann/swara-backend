@@ -145,10 +145,6 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'mentee_user_id',
       as: 'menteeSessions'
     });
-    User.hasMany(models.MentoringPayment, {
-      foreignKey: 'user_id',
-      as: 'mentoringPayments'
-    });
     User.hasMany(models.SkorSwara, {
       foreignKey: 'user_id',
       as: 'skorSwara'

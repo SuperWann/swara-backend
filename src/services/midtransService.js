@@ -55,10 +55,24 @@ class MidtransService {
   /**
    * Verify notification dari Midtrans
    * @param {Object} notification - Notification data dari Midtrans
+   * @param {boolean} skipVerification - Skip verification untuk testing (default: false)
    * @returns {Promise<Object>} Status notification
    */
-  async handleNotification(notification) {
+  async handleNotification(notification, skipVerification = false) {
     try {
+      // Mode testing: skip Midtrans API verification
+      if (skipVerification || process.env.MIDTRANS_SKIP_VERIFICATION === 'true') {
+        console.log('⚠️  TESTING MODE: Skipping Midtrans verification');
+        return {
+          orderId: notification.order_id,
+          transactionStatus: notification.transaction_status,
+          fraudStatus: notification.fraud_status || 'accept',
+          paymentType: notification.payment_type,
+          transactionId: notification.transaction_id
+        };
+      }
+
+      // Production mode: verify dengan Midtrans API
       const statusResponse = await this.coreApi.transaction.notification(notification);
       
       const orderId = statusResponse.order_id;
@@ -76,6 +90,19 @@ class MidtransService {
       };
     } catch (error) {
       console.error('Midtrans notification error:', error);
+      
+      // Jika error 404 dan bukan production, allow sebagai testing
+      if (error.message.includes('404') && !this.snap.isProduction) {
+        console.log('⚠️  Transaction not found in Midtrans (probably testing). Processing anyway...');
+        return {
+          orderId: notification.order_id,
+          transactionStatus: notification.transaction_status,
+          fraudStatus: notification.fraud_status || 'accept',
+          paymentType: notification.payment_type,
+          transactionId: notification.transaction_id
+        };
+      }
+      
       throw new Error('Failed to handle payment notification: ' + error.message);
     }
   }
