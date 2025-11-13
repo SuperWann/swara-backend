@@ -8,27 +8,9 @@ const { upload } = require('../config/upload');
 const router = express.Router();
 
 const submitHasilValidation = [
-  body('skor_swara_id')
-    .notEmpty().withMessage('Skor Swara ID is required')
-    .isInt({ min: 1 }).withMessage('Skor Swara ID must be a valid number'),
-  body('kelancaran_point')
-    .notEmpty().withMessage('Kelancaran point is required')
-    .isInt({ min: 0, max: 5 }).withMessage('Kelancaran point must be between 0-5'),
-  body('penggunaan_bahasa_point')
-    .notEmpty().withMessage('Penggunaan bahasa point is required')
-    .isInt({ min: 0, max: 5 }).withMessage('Penggunaan bahasa point must be between 0-5'),
-  body('ekspresi_point')
-    .notEmpty().withMessage('Ekspresi point is required')
-    .isInt({ min: 0, max: 5 }).withMessage('Ekspresi point must be between 0-5'),
-  body('kelancaran_suggest')
-    .notEmpty().withMessage('Kelancaran suggestion is required')
-    .isString().withMessage('Kelancaran suggestion must be a string'),
-  body('penggunaan_bahasa_suggest')
-    .notEmpty().withMessage('Penggunaan bahasa suggestion is required')
-    .isString().withMessage('Penggunaan bahasa suggestion must be a string'),
-  body('ekspresi_suggest')
-    .notEmpty().withMessage('Ekspresi suggestion is required')
-    .isString().withMessage('Ekspresi suggestion must be a string')
+  body('skor_swara_topic_id')
+    .notEmpty().withMessage('Skor Swara Topic ID is required')
+    .isInt({ min: 1 }).withMessage('Skor Swara Topic ID must be a valid number')
 ];
 
 const startLatihanValidation = [
@@ -99,7 +81,7 @@ router.post(
 );
 
 // Submit hasil latihan (from AI) -- sementara
-router.post('/submit', validate, SkorSwaraController.submitHasil);
+router.post('/submit', submitHasilValidation, validate, SkorSwaraController.submitHasil);
 
 // Get user's riwayat latihan
 router.get('/riwayat', paginationValidation, validate, SkorSwaraController.getRiwayat);

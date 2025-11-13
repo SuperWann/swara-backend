@@ -174,7 +174,7 @@ class SkorSwaraController {
           }
 
           try {
-            customKeywords = await chatgptService.generateKeywords(topicData.topic);
+            customKeyword = await chatgptService.generateKeywords(topicData.topic);
           } catch (aiError) {
             console.warn("Warning: Could not generate keywords for existing topic:", aiError.message);
           }
@@ -197,12 +197,18 @@ class SkorSwaraController {
           custom_keyword: customKeyword || null,
           image_id: (mode.mode_type === 'image' && topicData) ? topicData.image_id : null,
           point_earned: 0,
-          kelancaran_point: 0,
-          penggunaan_bahasa_point: 0,
-          ekspresi_point: 0,
-          kelancaran_suggest: "",
-          penggunaan_bahasa_suggest: "",
-          ekspresi_suggest: "",
+          tempo: 0,
+          artikulasi: 0,
+          kontak_mata: 0,
+          kesesuaian_topik: 0,
+          struktur: 0,
+          jeda: 0,
+          first_impression: 0,
+          ekspresi: 0,
+          gestur: 0,
+          kata_pengisi: 0,
+          kata_tidak_senonoh: 0,
+          skor_total: 0,
         },
         { transaction }
       );
@@ -235,8 +241,8 @@ class SkorSwaraController {
         };
       }
 
-      if (mode.mode_type === 'custom' && customKeywords) {
-        responseData.keywords = customKeywords;
+      if (mode.mode_type === 'custom' && customKeyword) {
+        responseData.keywords = customKeyword;
       }
 
       res.json({
@@ -245,7 +251,10 @@ class SkorSwaraController {
         data: responseData,
       });
     } catch (error) {
-      await transaction.rollback();
+      // Only rollback if transaction is still pending
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
       res.status(500).json({
         success: false,
         message: "Failed to start latihan",
@@ -356,20 +365,23 @@ class SkorSwaraController {
         });
       }
 
-      const totalPoints =
-        aiResult.kelancaran_point +
-        aiResult.penggunaan_bahasa_point +
-        aiResult.ekspresi_point;
+      const totalPoints = aiResult.skor_total || 0;
 
       await skorSwara.update(
         {
           point_earned: totalPoints,
-          kelancaran_point: aiResult.kelancaran_point,
-          penggunaan_bahasa_point: aiResult.penggunaan_bahasa_point,
-          ekspresi_point: aiResult.ekspresi_point,
-          kelancaran_suggest: aiResult.kelancaran_suggest,
-          penggunaan_bahasa_suggest: aiResult.penggunaan_bahasa_suggest,
-          ekspresi_suggest: aiResult.ekspresi_suggest,
+          tempo: aiResult.tempo || 0,
+          artikulasi: aiResult.artikulasi || 0,
+          kontak_mata: aiResult.kontak_mata || 0,
+          kesesuaian_topik: aiResult.kesesuaian_topik || 0,
+          struktur: aiResult.struktur || 0,
+          jeda: aiResult.jeda || 0,
+          first_impression: aiResult.first_impression || 0,
+          ekspresi: aiResult.ekspresi || 0,
+          gestur: aiResult.gestur || 0,
+          kata_pengisi: aiResult.kata_pengisi || 0,
+          kata_tidak_senonoh: aiResult.kata_tidak_senonoh || 0,
+          skor_total: totalPoints,
         },
         { transaction }
       );
@@ -383,15 +395,18 @@ class SkorSwaraController {
           skor_swara_id: skorSwara.skor_swara_id,
           topic: skorSwara.skor_swara_topic,
           scores: {
-            kelancaran_point: aiResult.kelancaran_point,
-            penggunaan_bahasa_point: aiResult.penggunaan_bahasa_point,
-            ekspresi_point: aiResult.ekspresi_point,
-            total_points: totalPoints,
-          },
-          suggestions: {
-            kelancaran_suggest: aiResult.kelancaran_suggest,
-            penggunaan_bahasa_suggest: aiResult.penggunaan_bahasa_suggest,
-            ekspresi_suggest: aiResult.ekspresi_suggest,
+            tempo: aiResult.tempo,
+            artikulasi: aiResult.artikulasi,
+            kontak_mata: aiResult.kontak_mata,
+            kesesuaian_topik: aiResult.kesesuaian_topik,
+            struktur: aiResult.struktur,
+            jeda: aiResult.jeda,
+            first_impression: aiResult.first_impression,
+            ekspresi: aiResult.ekspresi,
+            gestur: aiResult.gestur,
+            kata_pengisi: aiResult.kata_pengisi,
+            kata_tidak_senonoh: aiResult.kata_tidak_senonoh,
+            skor_total: totalPoints,
           },
         },
       });
@@ -708,9 +723,17 @@ class SkorSwaraController {
       let stats = {
         total_latihan: count,
         average_scores: {
-          kelancaran: 0,
-          penggunaan_bahasa: 0,
+          tempo: 0,
+          artikulasi: 0,
+          kontak_mata: 0,
+          kesesuaian_topik: 0,
+          struktur: 0,
+          jeda: 0,
+          first_impression: 0,
           ekspresi: 0,
+          gestur: 0,
+          kata_pengisi: 0,
+          kata_tidak_senonoh: 0,
           overall: 0,
         },
         total_points: 0,
@@ -723,41 +746,38 @@ class SkorSwaraController {
             point_earned: { [sequelize.Sequelize.Op.gt]: 0 },
           },
           attributes: [
-            [
-              sequelize.fn("AVG", sequelize.col("kelancaran_point")),
-              "avg_kelancaran",
-            ],
-            [
-              sequelize.fn("AVG", sequelize.col("penggunaan_bahasa_point")),
-              "avg_bahasa",
-            ],
-            [
-              sequelize.fn("AVG", sequelize.col("ekspresi_point")),
-              "avg_ekspresi",
-            ],
-            [
-              sequelize.fn("SUM", sequelize.col("point_earned")),
-              "total_points",
-            ],
+            [sequelize.fn("AVG", sequelize.col("tempo")), "avg_tempo"],
+            [sequelize.fn("AVG", sequelize.col("artikulasi")), "avg_artikulasi"],
+            [sequelize.fn("AVG", sequelize.col("kontak_mata")), "avg_kontak_mata"],
+            [sequelize.fn("AVG", sequelize.col("kesesuaian_topik")), "avg_kesesuaian_topik"],
+            [sequelize.fn("AVG", sequelize.col("struktur")), "avg_struktur"],
+            [sequelize.fn("AVG", sequelize.col("jeda")), "avg_jeda"],
+            [sequelize.fn("AVG", sequelize.col("first_impression")), "avg_first_impression"],
+            [sequelize.fn("AVG", sequelize.col("ekspresi")), "avg_ekspresi"],
+            [sequelize.fn("AVG", sequelize.col("gestur")), "avg_gestur"],
+            [sequelize.fn("AVG", sequelize.col("kata_pengisi")), "avg_kata_pengisi"],
+            [sequelize.fn("AVG", sequelize.col("kata_tidak_senonoh")), "avg_kata_tidak_senonoh"],
+            [sequelize.fn("AVG", sequelize.col("skor_total")), "avg_overall"],
+            [sequelize.fn("SUM", sequelize.col("point_earned")), "total_points"],
           ],
           raw: true,
         });
 
         if (allScores[0]) {
           stats.average_scores = {
-            kelancaran: parseFloat(allScores[0].avg_kelancaran || 0).toFixed(2),
-            penggunaan_bahasa: parseFloat(allScores[0].avg_bahasa || 0).toFixed(
-              2
-            ),
+            tempo: parseFloat(allScores[0].avg_tempo || 0).toFixed(2),
+            artikulasi: parseFloat(allScores[0].avg_artikulasi || 0).toFixed(2),
+            kontak_mata: parseFloat(allScores[0].avg_kontak_mata || 0).toFixed(2),
+            kesesuaian_topik: parseFloat(allScores[0].avg_kesesuaian_topik || 0).toFixed(2),
+            struktur: parseFloat(allScores[0].avg_struktur || 0).toFixed(2),
+            jeda: parseFloat(allScores[0].avg_jeda || 0).toFixed(2),
+            first_impression: parseFloat(allScores[0].avg_first_impression || 0).toFixed(2),
             ekspresi: parseFloat(allScores[0].avg_ekspresi || 0).toFixed(2),
+            gestur: parseFloat(allScores[0].avg_gestur || 0).toFixed(2),
+            kata_pengisi: parseFloat(allScores[0].avg_kata_pengisi || 0).toFixed(2),
+            kata_tidak_senonoh: parseFloat(allScores[0].avg_kata_tidak_senonoh || 0).toFixed(2),
+            overall: parseFloat(allScores[0].avg_overall || 0).toFixed(2),
           };
-
-          const overall =
-            (parseFloat(stats.average_scores.kelancaran) +
-              parseFloat(stats.average_scores.penggunaan_bahasa) +
-              parseFloat(stats.average_scores.ekspresi)) /
-            3;
-          stats.average_scores.overall = parseFloat(overall.toFixed(2));
           stats.total_points = parseInt(allScores[0].total_points || 0);
         }
       }
@@ -827,15 +847,19 @@ class SkorSwaraController {
         skor_swara_id: skorSwara.skor_swara_id,
         mode: skorSwara.mode,
         scores: {
-          kelancaran_point: skorSwara.kelancaran_point,
-          penggunaan_bahasa_point: skorSwara.penggunaan_bahasa_point,
-          ekspresi_point: skorSwara.ekspresi_point,
+          tempo: skorSwara.tempo,
+          artikulasi: skorSwara.artikulasi,
+          kontak_mata: skorSwara.kontak_mata,
+          kesesuaian_topik: skorSwara.kesesuaian_topik,
+          struktur: skorSwara.struktur,
+          jeda: skorSwara.jeda,
+          first_impression: skorSwara.first_impression,
+          ekspresi: skorSwara.ekspresi,
+          gestur: skorSwara.gestur,
+          kata_pengisi: skorSwara.kata_pengisi,
+          kata_tidak_senonoh: skorSwara.kata_tidak_senonoh,
+          skor_total: skorSwara.skor_total,
           total_points: skorSwara.point_earned,
-        },
-        suggestions: {
-          kelancaran_suggest: skorSwara.kelancaran_suggest,
-          penggunaan_bahasa_suggest: skorSwara.penggunaan_bahasa_suggest,
-          ekspresi_suggest: skorSwara.ekspresi_suggest,
         },
       };
 
