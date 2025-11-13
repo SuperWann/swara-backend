@@ -1,8 +1,11 @@
-const { SkorSwaraTopic, SkorSwara, SkorSwaraMode, SkorSwaraImage, User, sequelize } = require("../models");
+const { SkorSwaraTopic, SkorSwara, SkorSwaraMode, SkorSwaraImage, User, Mentee, sequelize } = require("../models");
 const aiService = require("../services/aiService");
 const chatgptService = require("../services/chatgptService");
-const fs = require("fs").promises;
+const AudioExtractor = require('../utils/audioExtractor');
 const path = require("path");
+const axios = require('axios');
+const FormData = require("form-data");
+const fs = require("fs");
 
 class SkorSwaraController {
   static async getAllModes(req, res) {
@@ -32,9 +35,9 @@ class SkorSwaraController {
       const { id } = req.params;
 
       const mode = await SkorSwaraMode.findOne({
-        where: { 
+        where: {
           mode_id: id,
-          is_active: true 
+          is_active: true
         },
         attributes: ['mode_id', 'mode_name', 'mode_type', 'description', 'icon'],
       });
@@ -68,9 +71,9 @@ class SkorSwaraController {
       const { mode_id, skor_swara_topic_id, custom_topic } = req.body;
 
       const mode = await SkorSwaraMode.findOne({
-        where: { 
+        where: {
           mode_id,
-          is_active: true 
+          is_active: true
         },
         transaction,
       });
@@ -131,7 +134,7 @@ class SkorSwaraController {
 
         const randomImage = allImages[Math.floor(Math.random() * allImages.length)];
         imageUrl = randomImage.image_url;
-        
+
         topicData = {
           skor_swara_topic_id: randomImage.topic.skor_swara_topic_id,
           topic: randomImage.topic.topic,
@@ -169,7 +172,7 @@ class SkorSwaraController {
               message: "Selected topic not found",
             });
           }
-          
+
           try {
             customKeywords = await chatgptService.generateKeywords(topicData.topic);
           } catch (aiError) {
@@ -188,8 +191,8 @@ class SkorSwaraController {
         {
           user_id: userId,
           mode_id: mode.mode_id,
-          skor_swara_topic_id: (mode.mode_type === 'text' && topicData) ? topicData.skor_swara_topic_id : 
-                               (mode.mode_type === 'image' && topicData) ? topicData.skor_swara_topic_id : null,
+          skor_swara_topic_id: (mode.mode_type === 'text' && topicData) ? topicData.skor_swara_topic_id :
+            (mode.mode_type === 'image' && topicData) ? topicData.skor_swara_topic_id : null,
           custom_topic: custom_topic || null,
           custom_keyword: customKeyword || null,
           image_id: (mode.mode_type === 'image' && topicData) ? topicData.image_id : null,
@@ -222,7 +225,7 @@ class SkorSwaraController {
       if (mode.mode_type === 'text' && topicData.skor_swara_topic_id) {
         responseData.topic.skor_swara_topic_id = topicData.skor_swara_topic_id;
       }
-      
+
       if (mode.mode_type === 'image') {
         responseData.topic.skor_swara_topic_id = topicData.skor_swara_topic_id;
         responseData.image = {
@@ -231,7 +234,7 @@ class SkorSwaraController {
           image_description: topicData.image_description,
         };
       }
-      
+
       if (mode.mode_type === 'custom' && customKeywords) {
         responseData.keywords = customKeywords;
       }
@@ -321,7 +324,7 @@ class SkorSwaraController {
       }
 
       let topicInfo = {};
-      
+
       if (skorSwara.mode.mode_type === 'text' && skorSwara.skor_swara_topic) {
         topicInfo = {
           topic: skorSwara.skor_swara_topic.topic,
@@ -412,98 +415,261 @@ class SkorSwaraController {
     }
   }
 
+  // static async submitHasil(req, res) {
+  //   const transaction = await sequelize.transaction();
+
+  //   try {
+  //     const userId = req.user.user_id;
+  //     const {
+  //       skor_swara_id,
+  //       kelancaran_point,
+  //       penggunaan_bahasa_point,
+  //       ekspresi_point,
+  //       kelancaran_suggest,
+  //       penggunaan_bahasa_suggest,
+  //       ekspresi_suggest,
+  //     } = req.body;
+
+  //     const skorSwara = await SkorSwara.findOne({
+  //       where: {
+  //         skor_swara_id,
+  //         user_id: userId,
+  //       },
+  //       transaction,
+  //     });
+
+  //     if (!skorSwara) {
+  //       await transaction.rollback();
+  //       return res.status(404).json({
+  //         success: false,
+  //         message: "Skor Swara session not found",
+  //       });
+  //     }
+
+  //     if (skorSwara.point_earned > 0) {
+  //       await transaction.rollback();
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: "This session has already been submitted",
+  //       });
+  //     }
+
+  //     const totalPoints =
+  //       kelancaran_point + penggunaan_bahasa_point + ekspresi_point;
+
+  //     await skorSwara.update(
+  //       {
+  //         point_earned: totalPoints,
+  //         kelancaran_point,
+  //         penggunaan_bahasa_point,
+  //         ekspresi_point,
+  //         kelancaran_suggest,
+  //         penggunaan_bahasa_suggest,
+  //         ekspresi_suggest,
+  //       },
+  //       { transaction }
+  //     );
+
+  //     await transaction.commit();
+
+  //     const updatedData = await SkorSwara.findOne({
+  //       where: { skor_swara_id },
+  //       include: [
+  //         {
+  //           model: SkorSwaraTopic,
+  //           as: "skor_swara_topic",
+  //           attributes: ["skor_swara_topic_id", "topic", "text"],
+  //         },
+  //       ],
+  //     });
+
+  //     res.json({
+  //       success: true,
+  //       message: "Hasil latihan submitted successfully",
+  //       data: {
+  //         skor_swara_id: updatedData.skor_swara_id,
+  //         topic: updatedData.skor_swara_topic,
+  //         scores: {
+  //           kelancaran_point,
+  //           penggunaan_bahasa_point,
+  //           ekspresi_point,
+  //           total_points: totalPoints,
+  //         },
+  //         suggestions: {
+  //           kelancaran_suggest,
+  //           penggunaan_bahasa_suggest,
+  //           ekspresi_suggest,
+  //         },
+  //       },
+  //     });
+  //   } catch (error) {
+  //     await transaction.rollback();
+  //     res.status(500).json({
+  //       success: false,
+  //       message: "Failed to submit hasil latihan",
+  //       error: error.message,
+  //     });
+  //   }
+  // }
+
   static async submitHasil(req, res) {
-    const transaction = await sequelize.transaction();
+    let extracted = null;
 
     try {
+      const videoUrl = "https://res.cloudinary.com/dluvt9ppm/video/upload/v1762321923/swara-videos/z8uf1cxthfsl8wxly4b0.mp4";
       const userId = req.user.user_id;
-      const {
-        skor_swara_id,
-        kelancaran_point,
-        penggunaan_bahasa_point,
-        ekspresi_point,
-        kelancaran_suggest,
-        penggunaan_bahasa_suggest,
-        ekspresi_suggest,
-      } = req.body;
-
-      const skorSwara = await SkorSwara.findOne({
-        where: {
-          skor_swara_id,
-          user_id: userId,
-        },
-        transaction,
-      });
-
-      if (!skorSwara) {
-        await transaction.rollback();
-        return res.status(404).json({
-          success: false,
-          message: "Skor Swara session not found",
-        });
-      }
-
-      if (skorSwara.point_earned > 0) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "This session has already been submitted",
-        });
-      }
-
-      const totalPoints =
-        kelancaran_point + penggunaan_bahasa_point + ekspresi_point;
-
-      await skorSwara.update(
-        {
-          point_earned: totalPoints,
-          kelancaran_point,
-          penggunaan_bahasa_point,
-          ekspresi_point,
-          kelancaran_suggest,
-          penggunaan_bahasa_suggest,
-          ekspresi_suggest,
-        },
-        { transaction }
-      );
-
-      await transaction.commit();
-
-      const updatedData = await SkorSwara.findOne({
-        where: { skor_swara_id },
+      const { skor_swara_topic_id } = req.body;
+      let level = 1;
+      
+      const user = await User.findByPk(userId, {
         include: [
           {
-            model: SkorSwaraTopic,
-            as: "skor_swara_topic",
-            attributes: ["skor_swara_topic_id", "topic", "text"],
-          },
-        ],
+            model: Mentee,
+            as: 'mentee',
+            attributes: ['mentee_id', 'point', 'exercise_count', 'minute_count', 'token_count', 'last_token_reset']
+          }
+        ]
       });
+
+      const point = user.mentee[0]?.point || 0;
+
+      if (point <= 100) {
+        level = 1;
+      } else if (point > 100 && point <= 200) {
+        level = 2;
+      } else if (point > 200) {
+        level = 3;
+      }
+
+      const topicData = await SkorSwaraTopic.findByPk(skor_swara_topic_id);
+
+      if (!topicData) {
+        return res.status(404).json({
+          success: false,
+          message: "Topic not found",
+        });
+      }    
+
+      const textTopic = topicData.text;
+
+      // Extract audio
+      extracted = await AudioExtractor.extractFromCloudinary(videoUrl);
+
+      // 1️⃣ Download video dari Cloudinary sebagai stream
+      const videoResponse = await axios.get(videoUrl, { responseType: "stream" });
+
+      // 2️⃣ Siapkan FormData
+      const videoData = new FormData();
+      videoData.append("video", videoResponse.data, {
+        filename: "video.mp4",
+        contentType: "video/mp4",
+      });
+      videoData.append("level", level);
+      videoData.append("user_id", userId);
+
+      // 3️⃣ Kirim ke API eksternal
+      const uploadVideoResponse = await axios.post(
+        "https://cyberlace-swara-api.hf.space/api/v1/analyze",
+        videoData,
+        {
+          headers: {
+            ...videoData.getHeaders(),
+          },
+        }
+      );
+
+      const { task_id } = uploadVideoResponse.data;
+      console.log("Task ID:", task_id);
+
+      // 4️⃣ Fungsi helper untuk polling
+      const checkResult = async (taskId, maxAttempts = 100, delayMs = 2000) => {
+        // akan mencoba 30 kali setiap 10 detik = maksimal 5 menit
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          console.log(`🔍 Checking result (attempt ${attempt})...`);
+
+          const response = await axios.get(
+            `https://cyberlace-swara-api.hf.space/api/v1/task/${taskId}`
+          );
+
+          const data = response.data;
+
+          if (data.result !== null) {
+            console.log("✅ Result ready!");
+            return data; // keluar dari loop dan kembalikan hasil
+          }
+
+          if (data.status === "failed" || data.error) {
+            throw new Error(`Analysis failed: ${data.error || "Unknown error"}`);
+          }
+
+          console.log("⏳ Still processing... waiting before next check...");
+          await new Promise((r) => setTimeout(r, delayMs)); // tunggu beberapa detik
+        }
+
+        throw new Error("Timeout: result not ready after maximum attempts");
+      };
+
+      // 5️⃣ Tunggu sampai result tersedia
+      const videoResult = await checkResult(task_id);
+
+      const audioData = new FormData();
+      audioData.append("audio", fs.createReadStream(extracted.audioPath), {
+        filename: "extracted_audio.wav",
+        contentType: "audio/wav",
+      });
+      audioData.append("reference_text", textTopic);
+
+      const uploadAudioResponse = await axios.post(
+        "https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/analyze",
+        audioData,
+        {
+          headers: {
+            ...audioData.getHeaders(),
+          },
+        }
+      )
+
+      const audio = uploadAudioResponse.data;
+
+      const checkAudioResult = async (taskId, maxAttempts = 30, delayMs = 2000) => {
+        // akan mencoba 30 kali setiap 10 detik = maksimal 5 menit
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          console.log(`🔍 Checking result (attempt ${attempt})...`);
+
+          const response = await axios.get(
+            `https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/status/${taskId}`
+          );
+
+          const data = response.data;
+
+          if (data.result !== null) {
+            console.log("✅ Result ready!");
+            return data; // keluar dari loop dan kembalikan hasil
+          }
+
+          if (data.status === "failed" || data.error) {
+            throw new Error(`Analysis failed: ${data.error || "Unknown error"}`);
+          }
+
+          console.log("⏳ Still processing... waiting before next check...");
+          await new Promise((r) => setTimeout(r, delayMs)); // tunggu beberapa detik
+        }
+
+        throw new Error("Timeout: result not ready after maximum attempts");
+      };
+
+      const audioResult = await checkAudioResult(audio.task_id);
 
       res.json({
         success: true,
-        message: "Hasil latihan submitted successfully",
-        data: {
-          skor_swara_id: updatedData.skor_swara_id,
-          topic: updatedData.skor_swara_topic,
-          scores: {
-            kelancaran_point,
-            penggunaan_bahasa_point,
-            ekspresi_point,
-            total_points: totalPoints,
-          },
-          suggestions: {
-            kelancaran_suggest,
-            penggunaan_bahasa_suggest,
-            ekspresi_suggest,
-          },
-        },
+        message: "Video and Audio uploaded and checked",
+        data: { videoResult, audioResult, level }
       });
     } catch (error) {
-      await transaction.rollback();
+      console.error(error);
       res.status(500).json({
         success: false,
-        message: "Failed to submit hasil latihan",
+        message: "Failed to analyze video and Audio",
         error: error.message,
       });
     }

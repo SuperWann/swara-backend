@@ -7,6 +7,23 @@ const {
 } = require('../utils/tokenUtils');
 const bcrypt = require('bcrypt');
 const { Op } = require('sequelize');
+const moment = require("moment");
+
+async function resetDailyTokens(mentee) {
+  const now = new Date();
+  const lastReset = new Date(mentee.last_token_reset);
+
+  const diffInDays = Math.floor((now - lastReset) / (1000 * 60 * 60 * 24));
+
+  if (diffInDays >= 1) {
+    mentee.token_count += 6;
+    mentee.last_token_reset = now;
+    await mentee.save();
+    console.log(`✅ Token mentee ${mentee.mentee_id} telah direset ke 6`);
+  }
+
+  return mentee.token_count;
+}
 
 class UserController {
   static async register(req, res) {
@@ -38,7 +55,7 @@ class UserController {
       });
 
       // Create mentee
-      const mentee = await await Mentee.create({ user_id: user.user_id, point: 0, exercise_count: 0, minute_count: 0 });
+      const mentee = await Mentee.create({ user_id: user.user_id, point: 0, exercise_count: 0, minute_count: 0, token: 6 });
 
       // Generate tokens
       const accessToken = generateAccessToken(user);
@@ -88,6 +105,7 @@ class UserController {
       });
     }
   }
+
 
   // Login
   // static async login(req, res) {
@@ -156,7 +174,14 @@ class UserController {
 
       // Cari user dengan Sequelize
       const user = await User.findOne({
-        where: { email }
+        where: { email },
+        include: [
+          {
+            model: Mentee,
+            as: 'mentee',
+            attributes: ['mentee_id', 'point', 'exercise_count', 'minute_count', 'token_count', 'last_token_reset']
+          }
+        ]
       });
 
       if (!user) {
@@ -164,6 +189,12 @@ class UserController {
           success: false,
           message: 'Invalid email or password'
         });
+      }
+
+      const mentee = user.mentee[0];
+
+      if (mentee) {
+        await resetDailyTokens(mentee);
       }
 
       // Verify password
@@ -197,6 +228,7 @@ class UserController {
             user_id: user.user_id,
             email: user.email,
             full_name: user.full_name,
+            mentee: user.mentee,
           },
           accessToken,
         }
