@@ -1,5 +1,6 @@
-const { MentorActivity, User, MentoringDate, StartEnd } = require('../models');
+const { MentorActivity, User, MentoringDate, StartEnd, Mentoring, MentoringPayment } = require('../models');
 const { sequelize } = require('../models');
+const { Op } = require('sequelize');
 
 class MentorController {
   static async getAllActivities(req, res) {
@@ -91,7 +92,7 @@ class MentorController {
       await transaction.rollback();
       return res.status(500).json({
         success: false,
-        message: 'Failed to create mentoring schedule',
+        message: 'Failed to create  schedule',
         error: error.message
       });
     }
@@ -128,7 +129,7 @@ class MentorController {
       await transaction.rollback();
       return res.status(500).json({
         success: false,
-        message: 'Failed to delete mentoring schedule',
+        message: 'Failed to delete  schedule',
         error: error.message
       });
     }
@@ -169,13 +170,13 @@ class MentorController {
 
       return res.status(200).json({
         success: true,
-        message: 'List of mentoring schedules',
+        message: 'List of  schedules',
         data
       });
     } catch (error) {
       return res.status(500).json({
         success: false,
-        message: 'Failed to fetch mentoring schedules',
+        message: 'Failed to fetch  schedules',
         error: error.message
       });
     }
@@ -232,6 +233,239 @@ class MentorController {
             });
         }
     }
+
+  static async getMentorSessions(req, res) {
+    try {
+      const mentorUserId = req.params.id;
+      const { status } = req.query;
+
+      console.log('Getting sessions for mentor:', mentorUserId, 'with status:', status);
+
+      const whereClause = { mentor_user_id: mentorUserId };
+      const now = new Date();
+
+      const mentoringSessions = await Mentoring.findAll({
+        where: whereClause,
+        include: [
+          {
+            model: User,
+            as: 'mentee',
+            attributes: ['user_id', 'full_name', 'email', 'phone_number']
+          },
+          {
+            model: MentoringPayment,
+            as: 'payment',
+            attributes: ['payment_id', 'order_id', 'payment_url', 'transaction_status', 'gross_amount', 'payment_type', 'paid_at'],
+            required: false
+          }
+        ],
+        order: [['jadwal', 'DESC']]
+      });
+
+      console.log('Found sessions:', mentoringSessions.length);
+
+      let formattedSessions = mentoringSessions.map(session => {
+        const sessionDate = new Date(session.jadwal);
+        const isUpcoming = sessionDate >= now;
+        
+        let sessionStatus = 'terjadwal';
+        if (sessionDate < now) {
+          sessionStatus = 'selesai';
+        }
+        
+        const transactionStatus = session.payment?.transaction_status || 'pending';
+        const isPaid = transactionStatus === 'settlement' || transactionStatus === 'capture';
+
+        return {
+          mentoring_id: session.mentoring_id,
+          
+          mentee: {
+            user_id: session.mentee.user_id,
+            full_name: session.mentee.full_name,
+            email: session.mentee.email,
+            phone_number: session.mentee.phone_number
+          },
+          
+          jadwal: session.jadwal,
+          tujuan_mentoring: session.tujuan_mentoring,
+          metode_mentoring_id: session.metode_mentoring_id,
+          status: sessionStatus,
+          
+          payment_status: transactionStatus,
+          is_paid: isPaid,
+          payment_info: session.payment ? {
+            payment_id: session.payment.payment_id,
+            order_id: session.payment.order_id,
+            payment_url: session.payment.payment_url,
+            gross_amount: session.payment.gross_amount,
+            payment_type: session.payment.payment_type,
+            paid_at: session.payment.paid_at
+          } : null,
+          
+          formatted_date: sessionDate.toLocaleDateString('id-ID', { 
+            day: 'numeric', 
+            month: 'long', 
+            year: 'numeric' 
+          }),
+          formatted_time: sessionDate.toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        };
+      });
+
+      if (status === 'terjadwal') {
+        formattedSessions = formattedSessions.filter(s => s.status === 'terjadwal');
+      } else if (status === 'selesai') {
+        formattedSessions = formattedSessions.filter(s => s.status === 'selesai');
+      } else if (status === 'dibatalkan') {
+        formattedSessions = formattedSessions.filter(s => s.status === 'dibatalkan');
+      }
+
+      const uniqueMentees = new Set(formattedSessions.map(s => s.mentee.user_id));
+      const terjadwalCount = formattedSessions.filter(s => s.status === 'terjadwal').length;
+      const selesaiCount = formattedSessions.filter(s => s.status === 'selesai').length;
+
+      res.json({
+        success: true,
+        message: 'Mentoring sessions retrieved successfully',
+        data: {
+          sessions: formattedSessions,
+          statistics: {
+            total_peserta: uniqueMentees.size,
+            sesi_terjadwal: terjadwalCount,
+            sesi_selesai: selesaiCount,
+            total_sesi: formattedSessions.length
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Get mentor sessions error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get  sessions',
+        error: error.message
+      });
+    }
+  }
+
+  static async getSessionDetail(req, res) {
+    try {
+      const { sessionId } = req.params;
+      const mentorUserId = req.user?.user_id;
+
+      console.log('Getting session detail:', sessionId, 'for mentor:', mentorUserId);
+
+      const session = await Mentoring.findOne({
+        where: { 
+          mentoring_id: sessionId
+        },
+        include: [
+          {
+            model: User,
+            as: 'mentee',
+            attributes: ['user_id', 'full_name', 'email', 'phone_number']
+          },
+          {
+            model: MentoringPayment,
+            as: 'payment',
+            attributes: ['payment_id', 'order_id', 'payment_url', 'transaction_status', 'gross_amount', 'payment_type', 'paid_at'],
+            required: false
+          }
+        ]
+      });
+
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          message: 'Session not found'
+        });
+      }
+
+      if (mentorUserId && session.mentor_user_id !== mentorUserId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have access to this session'
+        });
+      }
+
+      const sessionDate = new Date(session.jadwal);
+      const now = new Date();
+      const isUpcoming = sessionDate >= now;
+      const transactionStatus = session.payment?.transaction_status || 'pending';
+      const isPaid = transactionStatus === 'settlement' || transactionStatus === 'capture';
+
+      const totalSessionsCount = await Mentoring.count({
+        where: {
+          mentor_user_id: session.mentor_user_id,
+          mentee_user_id: session.mentee_user_id
+        }
+      });
+
+      const detailedSession = {
+        mentoring_id: session.mentoring_id,
+        
+        mentee: {
+          user_id: session.mentee.user_id,
+          full_name: session.mentee.full_name,
+          email: session.mentee.email,
+          phone_number: session.mentee.phone_number,
+          rating: null,
+          total_sessions_with_mentor: totalSessionsCount
+        },
+        
+        session_info: {
+          jadwal: session.jadwal,
+          formatted_date: sessionDate.toLocaleDateString('id-ID', { 
+            weekday: 'long',
+            day: 'numeric', 
+            month: 'long', 
+            year: 'numeric' 
+          }),
+          formatted_time: sessionDate.toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+          duration: '60 Menit',
+          tujuan_mentoring: session.tujuan_mentoring,
+          status: isUpcoming ? 'terjadwal' : 'selesai'
+        },
+        
+        metode: {
+          metode_mentoring_id: session.metode_mentoring_id,
+          metode_name: 'Zoom/Google Meeting'
+        },
+        
+        payment: {
+          payment_status: transactionStatus,
+          is_paid: isPaid,
+          gross_amount: session.payment?.gross_amount || 0,
+          payment_type: session.payment?.payment_type || null,
+          paid_at: session.payment?.paid_at || null,
+          order_id: session.payment?.order_id || null,
+          payment_url: session.payment?.payment_url || null
+        },
+        
+        // Additional info
+        created_at: session.created_at
+      };
+
+      res.json({
+        success: true,
+        message: 'Session detail retrieved successfully',
+        data: detailedSession
+      });
+
+    } catch (error) {
+      console.error('Get session detail error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get session detail',
+        error: error.message
+      });
+    }
+  }
 }
 
 module.exports = MentorController;
