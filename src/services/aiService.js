@@ -56,12 +56,18 @@ class AIService {
    */
   validateResponse(aiResponse) {
     const requiredFields = [
-      'kelancaran_point',
-      'penggunaan_bahasa_point',
-      'ekspresi_point',
-      'kelancaran_suggest',
-      'penggunaan_bahasa_suggest',
-      'ekspresi_suggest'
+      'tempo',
+      'artikulasi',
+      'kontak_mata',
+      'kesesuaian_topik',
+      'struktur',
+      'jeda',
+      'first_impression',
+      'ekspresi',
+      'gestur',
+      'kata_pengisi',
+      'kata_tidak_senonoh',
+      'skor_total'
     ];
 
     return requiredFields.every(field => aiResponse.hasOwnProperty(field));
