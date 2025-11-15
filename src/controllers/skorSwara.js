@@ -6,6 +6,7 @@ const path = require("path");
 const axios = require('axios');
 const FormData = require("form-data");
 const fs = require("fs");
+const cloudinary = require('cloudinary').v2;
 
 class SkorSwaraController {
   static async getAllModes(req, res) {
@@ -415,112 +416,32 @@ class SkorSwaraController {
     }
   }
 
-  // static async submitHasil(req, res) {
-  //   const transaction = await sequelize.transaction();
-
-  //   try {
-  //     const userId = req.user.user_id;
-  //     const {
-  //       skor_swara_id,
-  //       kelancaran_point,
-  //       penggunaan_bahasa_point,
-  //       ekspresi_point,
-  //       kelancaran_suggest,
-  //       penggunaan_bahasa_suggest,
-  //       ekspresi_suggest,
-  //     } = req.body;
-
-  //     const skorSwara = await SkorSwara.findOne({
-  //       where: {
-  //         skor_swara_id,
-  //         user_id: userId,
-  //       },
-  //       transaction,
-  //     });
-
-  //     if (!skorSwara) {
-  //       await transaction.rollback();
-  //       return res.status(404).json({
-  //         success: false,
-  //         message: "Skor Swara session not found",
-  //       });
-  //     }
-
-  //     if (skorSwara.point_earned > 0) {
-  //       await transaction.rollback();
-  //       return res.status(400).json({
-  //         success: false,
-  //         message: "This session has already been submitted",
-  //       });
-  //     }
-
-  //     const totalPoints =
-  //       kelancaran_point + penggunaan_bahasa_point + ekspresi_point;
-
-  //     await skorSwara.update(
-  //       {
-  //         point_earned: totalPoints,
-  //         kelancaran_point,
-  //         penggunaan_bahasa_point,
-  //         ekspresi_point,
-  //         kelancaran_suggest,
-  //         penggunaan_bahasa_suggest,
-  //         ekspresi_suggest,
-  //       },
-  //       { transaction }
-  //     );
-
-  //     await transaction.commit();
-
-  //     const updatedData = await SkorSwara.findOne({
-  //       where: { skor_swara_id },
-  //       include: [
-  //         {
-  //           model: SkorSwaraTopic,
-  //           as: "skor_swara_topic",
-  //           attributes: ["skor_swara_topic_id", "topic", "text"],
-  //         },
-  //       ],
-  //     });
-
-  //     res.json({
-  //       success: true,
-  //       message: "Hasil latihan submitted successfully",
-  //       data: {
-  //         skor_swara_id: updatedData.skor_swara_id,
-  //         topic: updatedData.skor_swara_topic,
-  //         scores: {
-  //           kelancaran_point,
-  //           penggunaan_bahasa_point,
-  //           ekspresi_point,
-  //           total_points: totalPoints,
-  //         },
-  //         suggestions: {
-  //           kelancaran_suggest,
-  //           penggunaan_bahasa_suggest,
-  //           ekspresi_suggest,
-  //         },
-  //       },
-  //     });
-  //   } catch (error) {
-  //     await transaction.rollback();
-  //     res.status(500).json({
-  //       success: false,
-  //       message: "Failed to submit hasil latihan",
-  //       error: error.message,
-  //     });
-  //   }
-  // }
-
   static async submitHasil(req, res) {
     let extracted = null;
 
     try {
-      const videoUrl = "https://res.cloudinary.com/dluvt9ppm/video/upload/v1762321923/swara-videos/z8uf1cxthfsl8wxly4b0.mp4";
       const userId = req.user.user_id;
       const { skor_swara_topic_id } = req.body;
       let level = 1;
-      
+
+      // Pastikan file ada
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: "Video file is required",
+        });
+      }
+
+      // 1️⃣ Upload video ke Cloudinary
+      const uploadToCloudinary = await cloudinary.uploader.upload(req.file.path, {
+        resource_type: "video",
+        folder: "swara-videos"
+      });
+
+      const videoUrl = uploadToCloudinary.secure_url;
+      console.log("📤 Video uploaded:", videoUrl);
+
+      // 2️⃣ Ambil user + mentee
       const user = await User.findByPk(userId, {
         include: [
           {
@@ -533,32 +454,27 @@ class SkorSwaraController {
 
       const point = user.mentee[0]?.point || 0;
 
-      if (point <= 100) {
-        level = 1;
-      } else if (point > 100 && point <= 200) {
-        level = 2;
-      } else if (point > 200) {
-        level = 3;
-      }
+      if (point <= 100) level = 1;
+      else if (point <= 200) level = 2;
+      else level = 3;
 
+      // 3️⃣ Ambil topik
       const topicData = await SkorSwaraTopic.findByPk(skor_swara_topic_id);
-
       if (!topicData) {
         return res.status(404).json({
           success: false,
           message: "Topic not found",
         });
-      }    
+      }
 
       const textTopic = topicData.text;
 
-      // Extract audio
+      // 4️⃣ Extract audio
       extracted = await AudioExtractor.extractFromCloudinary(videoUrl);
 
-      // 1️⃣ Download video dari Cloudinary sebagai stream
+      // 5️⃣ Download video untuk dikirim ke API eksternal
       const videoResponse = await axios.get(videoUrl, { responseType: "stream" });
 
-      // 2️⃣ Siapkan FormData
       const videoData = new FormData();
       videoData.append("video", videoResponse.data, {
         filename: "video.mp4",
@@ -567,51 +483,38 @@ class SkorSwaraController {
       videoData.append("level", level);
       videoData.append("user_id", userId);
 
-      // 3️⃣ Kirim ke API eksternal
       const uploadVideoResponse = await axios.post(
         "https://cyberlace-swara-api.hf.space/api/v1/analyze",
         videoData,
         {
-          headers: {
-            ...videoData.getHeaders(),
-          },
+          headers: { ...videoData.getHeaders() },
         }
       );
 
       const { task_id } = uploadVideoResponse.data;
-      console.log("Task ID:", task_id);
 
-      // 4️⃣ Fungsi helper untuk polling
+      // 🔁 POLLING RESULT VIDEO
       const checkResult = async (taskId, maxAttempts = 100, delayMs = 2000) => {
-        // akan mencoba 30 kali setiap 10 detik = maksimal 5 menit
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          console.log(`🔍 Checking result (attempt ${attempt})...`);
-
           const response = await axios.get(
             `https://cyberlace-swara-api.hf.space/api/v1/task/${taskId}`
           );
 
-          const data = response.data;
+          if (response.data.result !== null) return response.data;
 
-          if (data.result !== null) {
-            console.log("✅ Result ready!");
-            return data; // keluar dari loop dan kembalikan hasil
+          if (response.data.status === "failed") {
+            throw new Error(`Analysis failed: ${response.data.error}`);
           }
 
-          if (data.status === "failed" || data.error) {
-            throw new Error(`Analysis failed: ${data.error || "Unknown error"}`);
-          }
-
-          console.log("⏳ Still processing... waiting before next check...");
-          await new Promise((r) => setTimeout(r, delayMs)); // tunggu beberapa detik
+          await new Promise((r) => setTimeout(r, delayMs));
         }
 
-        throw new Error("Timeout: result not ready after maximum attempts");
+        throw new Error("Timeout waiting for result");
       };
 
-      // 5️⃣ Tunggu sampai result tersedia
       const videoResult = await checkResult(task_id);
 
+      // 6️⃣ Kirim audio ke API kedua
       const audioData = new FormData();
       audioData.append("audio", fs.createReadStream(extracted.audioPath), {
         filename: "extracted_audio.wav",
@@ -623,57 +526,48 @@ class SkorSwaraController {
         "https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/analyze",
         audioData,
         {
-          headers: {
-            ...audioData.getHeaders(),
-          },
+          headers: { ...audioData.getHeaders() },
         }
-      )
+      );
 
       const audio = uploadAudioResponse.data;
 
       const checkAudioResult = async (taskId, maxAttempts = 30, delayMs = 2000) => {
-        // akan mencoba 30 kali setiap 10 detik = maksimal 5 menit
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          console.log(`🔍 Checking result (attempt ${attempt})...`);
-
           const response = await axios.get(
             `https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/status/${taskId}`
           );
 
-          const data = response.data;
+          if (response.data.result !== null) return response.data;
 
-          if (data.result !== null) {
-            console.log("✅ Result ready!");
-            return data; // keluar dari loop dan kembalikan hasil
+          if (response.data.status === "failed") {
+            throw new Error(`Audio analysis failed: ${response.data.error}`);
           }
 
-          if (data.status === "failed" || data.error) {
-            throw new Error(`Analysis failed: ${data.error || "Unknown error"}`);
-          }
-
-          console.log("⏳ Still processing... waiting before next check...");
-          await new Promise((r) => setTimeout(r, delayMs)); // tunggu beberapa detik
+          await new Promise((r) => setTimeout(r, delayMs));
         }
 
-        throw new Error("Timeout: result not ready after maximum attempts");
+        throw new Error("Timeout waiting for audio result");
       };
 
       const audioResult = await checkAudioResult(audio.task_id);
 
       res.json({
         success: true,
-        message: "Video and Audio uploaded and checked",
-        data: { videoResult, audioResult, level }
+        message: "Video and audio processed",
+        data: { videoResult, audioResult, level, videoUrl }
       });
+
     } catch (error) {
       console.error(error);
       res.status(500).json({
         success: false,
-        message: "Failed to analyze video and Audio",
+        message: "Failed to analyze video and audio",
         error: error.message,
       });
     }
   }
+
 
   static async getRiwayat(req, res) {
     try {

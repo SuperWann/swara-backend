@@ -99,7 +99,7 @@ router.post(
 );
 
 // Submit hasil latihan (from AI) -- sementara
-router.post('/submit', validate, SkorSwaraController.submitHasil);
+router.post('/submit', upload.single('video'), validate, SkorSwaraController.submitHasil);
 
 // Get user's riwayat latihan
 router.get('/riwayat', paginationValidation, validate, SkorSwaraController.getRiwayat);
