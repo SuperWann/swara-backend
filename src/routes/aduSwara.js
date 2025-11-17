@@ -3,6 +3,7 @@ const { body, query, param } = require('express-validator');
 const AduSwaraController = require('../controllers/aduSwara');
 const { auth } = require('../middleware/auth');
 const { validate } = require('../middleware/validator');
+const { uploadImage } = require('../config/cloudinary');
 
 const router = express.Router();
 
@@ -81,12 +82,12 @@ router.get('/history', AduSwaraController.getMatchHistory);
 router.get('/leaderboard', AduSwaraController.getLeaderboard);
 
 // Create new topic
-router.post('/topics', AduSwaraController.createAduSwaraTopic);
+router.post('/topics', uploadImage.single('image'), AduSwaraController.createAduSwaraTopic);
 
 // Delete topic
 router.delete('/topics/:id', AduSwaraController.deleteAduSwaraTopic);
 
 // Update topic
-router.put('/topics/:id', AduSwaraController.updateAduSwaraTopic);
+router.put('/topics/:id', uploadImage.single('image'), AduSwaraController.updateAduSwaraTopic);
 
 module.exports = router;

@@ -4,13 +4,14 @@ const SkorSwaraController = require('../controllers/skorSwara');
 const { auth } = require('../middleware/auth');
 const { validate } = require('../middleware/validator');
 const { upload } = require('../config/upload');
+const { uploadImage } = require('../config/cloudinary');
 
 const router = express.Router();
 
 const submitHasilValidation = [
-  body('skor_swara_topic_id')
-    .notEmpty().withMessage('Skor Swara Topic ID is required')
-    .isInt({ min: 1 }).withMessage('Skor Swara Topic ID must be a valid number')
+  body('skor_swara_id')
+    .optional()
+    .notEmpty().withMessage('Skor Swara ID is required')
 ];
 
 const startLatihanValidation = [
@@ -75,8 +76,8 @@ router.post('/start', startLatihanValidation, validate, SkorSwaraController.star
 
 // Upload video and get AI analysis
 router.post(
-  '/upload', 
-  upload.single('video'), 
+  '/upload',
+  upload.single('video'),
   SkorSwaraController.uploadAndAnalyze
 );
 
@@ -100,5 +101,16 @@ router.delete('/topics/:id', SkorSwaraController.deleteTopic);
 
 // Update topic
 router.put('/topics/:id', updateTopicValidation, validate, SkorSwaraController.updateTopic);
+
+
+
+// Create image topic
+router.post('/image-topics', uploadImage.single('image'), SkorSwaraController.createImageTopic);
+
+// Delete image topic
+router.delete('/image-topics/:id', SkorSwaraController.deleteImageTopic);
+
+// Update image topic
+router.put('/image-topics/:id', uploadImage.single('image'), SkorSwaraController.updateImageTopic);
 
 module.exports = router;

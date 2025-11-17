@@ -441,7 +441,8 @@ class UserController {
         phone_number: phone_number !== undefined ? phone_number : user.phone_number,
         birth_date: birth_date !== undefined ? birth_date : user.birth_date,
         address: address !== undefined ? address : user.address,
-        gender_id: gender_id !== undefined ? gender_id : user.gender_id
+        gender_id: gender_id !== undefined ? gender_id : user.gender_id,
+        profile_picture: req.file ? req.file.path : user.profile_picture
       });
 
       // Fetch updated user with relations

@@ -679,7 +679,8 @@ class AduSwaraController {
       const topic = await AduSwaraTopic.create(
         {
           title,
-          adu_swara_category_id
+          adu_swara_category_id,
+          image: req.file ? req.file.path : null
         },
         { transaction }
       );
@@ -770,25 +771,31 @@ class AduSwaraController {
 
       await topic.update(
         {
-          title,
-          adu_swara_category_id
+          title: title || topic.title,
+          adu_swara_category_id: adu_swara_category_id || topic.adu_swara_category_id,
+          image: req.file ? req.file.path : topic.image
         },
         { transaction }
       );
 
-      // Process keywords (split by comma)
-      const keywordArray = keywords.split(",").map(k => k.trim()).filter(Boolean);
+      // ===== Keyword Handling =====
+      let keywordArray = [];
 
-      for (const word of keywordArray) {
-        // Check if keyword exists
-        const [keyword] = await Keyword.findOrCreate({
-          where: { keyword: word },
-          defaults: { keyword: word },
-          transaction
-        });
+      if (keywords) {
+        keywordArray = keywords
+          .split(",")
+          .map(k => k.trim())
+          .filter(Boolean);
 
-        // Attach to pivot table
-        await topic.addKeyword(keyword, { transaction });
+        for (const word of keywordArray) {
+          const [keyword] = await Keyword.findOrCreate({
+            where: { keyword: word },
+            defaults: { keyword: word },
+            transaction
+          });
+
+          await topic.addKeyword(keyword, { transaction });
+        }
       }
 
       await transaction.commit();
@@ -808,6 +815,7 @@ class AduSwaraController {
       });
     }
   }
+
 }
 
 module.exports = AduSwaraController;

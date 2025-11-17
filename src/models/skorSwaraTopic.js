@@ -33,11 +33,6 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "skor_swara_topic_id",
       as: "skor_swara",
     });
-
-    SkorSwaraTopic.hasMany(models.SkorSwaraImage, {
-      foreignKey: "skor_swara_topic_id",
-      as: "images",
-    });
   };
 
   return SkorSwaraTopic;

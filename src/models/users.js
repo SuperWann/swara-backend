@@ -47,6 +47,10 @@ module.exports = (sequelize, DataTypes) => {
         isDate: { msg: 'Invalid date format' }
       }
     },
+    profile_picture: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
     address: {
       type: DataTypes.TEXT,
       allowNull: true

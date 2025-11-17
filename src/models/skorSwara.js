@@ -8,7 +8,7 @@ module.exports = (sequelize, DataTypes) => {
         autoIncrement: true,
       },
       point_earned: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.FLOAT,
         allowNull: false,
         defaultValue: 0,
       },
@@ -107,10 +107,9 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 0,
       },
-      skor_total: {
-        type: DataTypes.FLOAT,
-        allowNull: false,
-        defaultValue: 0,
+      script: {
+        type: DataTypes.TEXT,
+        allowNull: true,
       },
     },
     {

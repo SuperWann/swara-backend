@@ -7,14 +7,6 @@ module.exports = (sequelize, DataTypes) => {
         primaryKey: true,
         autoIncrement: true,
       },
-      skor_swara_topic_id: {
-        type: DataTypes.BIGINT,
-        allowNull: false,
-        references: {
-          model: "skor_swara_topics",
-          key: "skor_swara_topic_id",
-        },
-      },
       image_url: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -23,7 +15,14 @@ module.exports = (sequelize, DataTypes) => {
           isUrl: { msg: "Must be a valid URL" },
         },
       },
-      image_description: {
+      image_topic: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+        validate: {
+          notEmpty: { msg: "Image topic is required" },
+        },
+      },
+      image_keyword: {
         type: DataTypes.TEXT,
         allowNull: true,
         comment: "Optional description of the image",
@@ -41,13 +40,6 @@ module.exports = (sequelize, DataTypes) => {
   );
 
   SkorSwaraImage.associate = (models) => {
-    SkorSwaraImage.belongsTo(models.SkorSwaraTopic, {
-      foreignKey: "skor_swara_topic_id",
-      as: "topic",
-      onDelete: "CASCADE",
-      onUpdate: "CASCADE",
-    });
-
     SkorSwaraImage.hasMany(models.SkorSwara, {
       foreignKey: "image_id",
       as: "skor_swara_sessions",
