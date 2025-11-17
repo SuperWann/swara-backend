@@ -24,6 +24,10 @@ module.exports = (sequelize, DataTypes) => {
         model: 'adu_swara_categories',
         key: 'adu_swara_category_id'
       }
+    },
+    image: {
+      type: DataTypes.TEXT,
+      allowNull: true
     }
   }, {
     tableName: 'adu_swara_topics',

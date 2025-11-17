@@ -1,8 +1,12 @@
-const { SkorSwaraTopic, SkorSwara, SkorSwaraMode, SkorSwaraImage, User, sequelize } = require("../models");
+const { SkorSwaraTopic, SkorSwara, SkorSwaraMode, SkorSwaraImage, User, Mentee, sequelize } = require("../models");
 const aiService = require("../services/aiService");
 const chatgptService = require("../services/chatgptService");
-const fs = require("fs").promises;
+const AudioExtractor = require('../utils/audioExtractor');
 const path = require("path");
+const axios = require('axios');
+const FormData = require("form-data");
+const fs = require("fs");
+const cloudinary = require('cloudinary').v2;
 
 class SkorSwaraController {
   static async getAllModes(req, res) {
@@ -32,9 +36,9 @@ class SkorSwaraController {
       const { id } = req.params;
 
       const mode = await SkorSwaraMode.findOne({
-        where: { 
+        where: {
           mode_id: id,
-          is_active: true 
+          is_active: true
         },
         attributes: ['mode_id', 'mode_name', 'mode_type', 'description', 'icon'],
       });
@@ -67,13 +71,17 @@ class SkorSwaraController {
       const userId = req.user.user_id;
       const { mode_id, skor_swara_topic_id, custom_topic } = req.body;
 
+      // Validasi mode
+      console.log('=== Fetching mode with mode_id:', mode_id);
       const mode = await SkorSwaraMode.findOne({
-        where: { 
+        where: {
           mode_id,
-          is_active: true 
+          is_active: true
         },
         transaction,
+        logging: console.log, // LOG SQL QUERY
       });
+      console.log('=== Mode found:', mode?.mode_type);
 
       if (!mode) {
         await transaction.rollback();
@@ -86,10 +94,20 @@ class SkorSwaraController {
       let topicData = null;
       let customKeyword = null;
       let imageUrl = null;
+      let finalImageId = null;
+      let finalTopicId = null;
+      let finalCustomTopic = null;
+      let finalCustomKeyword = null;
 
+      // HANDLE MODE TYPE: TEXT
       if (mode.mode_type === 'text') {
         if (skor_swara_topic_id) {
-          topicData = await SkorSwaraTopic.findByPk(skor_swara_topic_id, { transaction });
+          console.log('=== Fetching specific topic:', skor_swara_topic_id);
+          topicData = await SkorSwaraTopic.findByPk(skor_swara_topic_id, {
+            transaction,
+            logging: console.log, // LOG SQL QUERY
+          });
+          console.log('=== Topic found:', topicData?.topic);
           if (!topicData) {
             await transaction.rollback();
             return res.status(404).json({
@@ -98,7 +116,12 @@ class SkorSwaraController {
             });
           }
         } else {
-          const topics = await SkorSwaraTopic.findAll({ transaction });
+          console.log('=== Fetching all topics for random selection');
+          const topics = await SkorSwaraTopic.findAll({
+            transaction,
+            logging: console.log, // LOG SQL QUERY
+          });
+          console.log('=== Topics count:', topics.length);
           if (topics.length === 0) {
             await transaction.rollback();
             return res.status(404).json({
@@ -108,18 +131,19 @@ class SkorSwaraController {
           }
           topicData = topics[Math.floor(Math.random() * topics.length)];
         }
-      } else if (mode.mode_type === 'image') {
+
+        finalTopicId = topicData.skor_swara_topic_id;
+      }
+
+      // HANDLE MODE TYPE: IMAGE
+      else if (mode.mode_type === 'image') {
+        console.log('=== Fetching all images');
         const allImages = await SkorSwaraImage.findAll({
           where: { is_active: true },
-          include: [
-            {
-              model: SkorSwaraTopic,
-              as: "topic",
-              attributes: ["skor_swara_topic_id", "topic", "text"],
-            },
-          ],
           transaction,
+          logging: console.log, // LOG SQL QUERY
         });
+        console.log('=== Images count:', allImages.length);
 
         if (allImages.length === 0) {
           await transaction.rollback();
@@ -131,15 +155,18 @@ class SkorSwaraController {
 
         const randomImage = allImages[Math.floor(Math.random() * allImages.length)];
         imageUrl = randomImage.image_url;
-        
+        finalImageId = randomImage.image_id;
+
         topicData = {
-          skor_swara_topic_id: randomImage.topic.skor_swara_topic_id,
-          topic: randomImage.topic.topic,
-          text: randomImage.topic.text,
+          topic: randomImage.image_topic,
+          text: `Sampaikan presentasi Anda tentang: ${randomImage.image_topic}`,
+          keyword: randomImage.image_keyword,
           image_id: randomImage.image_id,
-          image_description: randomImage.image_description,
         };
-      } else if (mode.mode_type === 'custom') {
+      }
+
+      // HANDLE MODE TYPE: CUSTOM
+      else if (mode.mode_type === 'custom') {
         if (custom_topic) {
           try {
             customKeyword = await chatgptService.generateKeywords(custom_topic);
@@ -160,6 +187,10 @@ class SkorSwaraController {
             topic: custom_topic,
             text: `Sampaikan presentasi Anda tentang: ${custom_topic}`,
           };
+
+          finalCustomTopic = custom_topic;
+          finalCustomKeyword = customKeyword;
+
         } else if (skor_swara_topic_id) {
           topicData = await SkorSwaraTopic.findByPk(skor_swara_topic_id, { transaction });
           if (!topicData) {
@@ -169,11 +200,15 @@ class SkorSwaraController {
               message: "Selected topic not found",
             });
           }
-          
+
           try {
-            customKeywords = await chatgptService.generateKeywords(topicData.topic);
+            customKeyword = await chatgptService.generateKeywords(topicData.topic);
+            finalCustomTopic = topicData.topic;
+            finalCustomKeyword = customKeyword;
           } catch (aiError) {
             console.warn("Warning: Could not generate keywords for existing topic:", aiError.message);
+            finalCustomTopic = topicData.topic;
+            finalCustomKeyword = null;
           }
         } else {
           await transaction.rollback();
@@ -184,28 +219,45 @@ class SkorSwaraController {
         }
       }
 
+      // CREATE SKOR SWARA RECORD
+      console.log('=== Creating SkorSwara record with:', {
+        user_id: userId,
+        mode_id: mode.mode_id,
+        skor_swara_topic_id: finalTopicId,
+        image_id: finalImageId,
+        custom_topic: finalCustomTopic,
+      });
       const skorSwara = await SkorSwara.create(
         {
           user_id: userId,
           mode_id: mode.mode_id,
-          skor_swara_topic_id: (mode.mode_type === 'text' && topicData) ? topicData.skor_swara_topic_id : 
-                               (mode.mode_type === 'image' && topicData) ? topicData.skor_swara_topic_id : null,
-          custom_topic: custom_topic || null,
-          custom_keyword: customKeyword || null,
-          image_id: (mode.mode_type === 'image' && topicData) ? topicData.image_id : null,
+          skor_swara_topic_id: finalTopicId,
+          image_id: finalImageId,
+          custom_topic: finalCustomTopic,
+          custom_keyword: finalCustomKeyword,
           point_earned: 0,
-          kelancaran_point: 0,
-          penggunaan_bahasa_point: 0,
-          ekspresi_point: 0,
-          kelancaran_suggest: "",
-          penggunaan_bahasa_suggest: "",
-          ekspresi_suggest: "",
+          tempo: 0,
+          artikulasi: 0,
+          kontak_mata: 0,
+          kesesuaian_topik: 0,
+          Struktur: 0,
+          jeda: 0,
+          first_impression: 0,
+          ekspresi: 0,
+          gestur: 0,
+          kata_pengisi: 0,
+          kata_tidak_senonoh: 0,
         },
-        { transaction }
+        {
+          transaction,
+          logging: console.log, // LOG SQL QUERY
+        }
       );
+      console.log('=== SkorSwara created with ID:', skorSwara.skor_swara_id);
 
       await transaction.commit();
 
+      // BUILD RESPONSE
       const responseData = {
         skor_swara_id: skorSwara.skor_swara_id,
         mode: {
@@ -219,21 +271,23 @@ class SkorSwaraController {
         },
       };
 
-      if (mode.mode_type === 'text' && topicData.skor_swara_topic_id) {
+      // Tambahkan topic_id untuk mode text
+      if (mode.mode_type === 'text') {
         responseData.topic.skor_swara_topic_id = topicData.skor_swara_topic_id;
       }
-      
+
+      // Tambahkan image data untuk mode image
       if (mode.mode_type === 'image') {
-        responseData.topic.skor_swara_topic_id = topicData.skor_swara_topic_id;
         responseData.image = {
           image_id: topicData.image_id,
           image_url: imageUrl,
-          image_description: topicData.image_description,
+          image_keyword: topicData.keyword,
         };
       }
-      
-      if (mode.mode_type === 'custom' && customKeywords) {
-        responseData.keywords = customKeywords;
+
+      // Tambahkan keywords untuk mode custom
+      if (mode.mode_type === 'custom' && finalCustomKeyword) {
+        responseData.keywords = finalCustomKeyword;
       }
 
       res.json({
@@ -241,8 +295,11 @@ class SkorSwaraController {
         message: "Latihan started successfully",
         data: responseData,
       });
+
     } catch (error) {
-      await transaction.rollback();
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
       res.status(500).json({
         success: false,
         message: "Failed to start latihan",
@@ -250,6 +307,441 @@ class SkorSwaraController {
       });
     }
   }
+
+  static async submitHasil(req, res) {
+    let extracted = null;
+
+    try {
+      const userId = req.user.user_id;
+      const { script } = req.body;
+      const skor_swara_id = await SkorSwara.max('skor_swara_id', { where: { user_id: userId } });
+      console.log('=== Submitting results for SkorSwara ID:', skor_swara_id);
+      let level = 1;
+
+      const skorSwara = await SkorSwara.findByPk(skor_swara_id);
+      if (!skorSwara) {
+        return res.status(404).json({
+          success: false,
+          message: "SkorSwara not found",
+        });
+      }
+
+      // await SkorSwara
+
+      const detailSkorSwara = await SkorSwara.findByPk(skor_swara_id, {
+        include: [
+          {
+            model: SkorSwaraTopic,
+            as: "skor_swara_topic",
+            attributes: ["skor_swara_topic_id", "topic", "text"],
+            required: false,
+          },
+          {
+            model: SkorSwaraMode,
+            as: "mode",
+            attributes: ["mode_id", "mode_name", "mode_type"],
+          },
+          {
+            model: SkorSwaraImage,
+            as: "image",
+            attributes: ["image_id", "image_url", "image_keyword", "image_topic"],
+            required: false,
+          }],
+      });
+
+      const skorSwaraTopic = detailSkorSwara.skor_swara_topic;
+      const skorSwaraMode = detailSkorSwara.mode;
+      const skorSwaraImage = detailSkorSwara.image;
+
+      // Pastikan file ada
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: "Video file is required",
+        });
+      }
+
+      // 1️⃣ Upload video ke Cloudinary
+      const uploadToCloudinary = await cloudinary.uploader.upload(req.file.path, {
+        resource_type: "video",
+        folder: "swara-videos"
+      });
+
+      const videoUrl = uploadToCloudinary.secure_url;
+      console.log("📤 Video uploaded:", videoUrl);
+
+      const user = await User.findByPk(detailSkorSwara.user_id, {
+        include: [
+          {
+            model: Mentee,
+            as: 'mentee',
+            attributes: ['mentee_id', 'point', 'exercise_count', 'minute_count', 'token_count', 'last_token_reset']
+          }
+        ]
+      });
+
+      const point = user.mentee[0]?.point || 0;
+
+      if (point <= 100) level = 1;
+      else if (point <= 200) level = 2;
+      else level = 3;
+
+      // 4️⃣ Extract audio
+      extracted = await AudioExtractor.extractFromCloudinary(videoUrl);
+
+      // 5️⃣ Download video untuk dikirim ke API eksternal
+      const videoResponse = await axios.get(videoUrl, { responseType: "stream" });
+
+      const videoData = new FormData();
+      videoData.append("video", videoResponse.data, {
+        filename: "video.mp4",
+        contentType: "video/mp4",
+      });
+      videoData.append("level", level);
+
+      const uploadVideoResponse = await axios.post(
+        "https://cyberlace-swara-api.hf.space/api/v1/analyze",
+        videoData,
+        {
+          headers: { ...videoData.getHeaders() },
+        }
+      );
+
+      const { task_id } = uploadVideoResponse.data;
+
+      // 🔁 POLLING RESULT VIDEO
+      const checkResult = async (taskId, maxAttempts = 100, delayMs = 2000) => {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          const response = await axios.get(
+            `https://cyberlace-swara-api.hf.space/api/v1/task/${taskId}`
+          );
+
+          if (response.data.result !== null) return response.data;
+
+          if (response.data.status === "failed") {
+            throw new Error(`Analysis failed: ${response.data.error}`);
+          }
+
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
+
+        throw new Error("Timeout waiting for result");
+      };
+
+      const videoResult = await checkResult(task_id);
+
+      //======================================== AUDIO ANALYSIS ===============================================================
+
+      const audioData = new FormData();
+      audioData.append("audio", fs.createReadStream(extracted.audioPath), {
+        filename: "extracted_audio.wav",
+        contentType: "audio/wav",
+      });
+
+      if (skorSwaraMode.mode_type === 'text') {
+        audioData.append("reference_text", skorSwaraTopic.text);
+      } else if (skorSwaraMode.mode_type === 'image') {
+        // Check if skorSwaraImage exists before accessing its properties
+        if (!skorSwaraImage) {
+          throw new Error("Image data is required for image mode but not found");
+        }
+        const imageKeyword = skorSwaraImage.image_keyword
+          ? skorSwaraImage.image_keyword.split(",").map(item => item.trim())
+          : [];
+        audioData.append("reference_text", script || "");
+        audioData.append("custom_topic", skorSwaraImage.image_topic || "");
+        audioData.append("custom_keywords", JSON.stringify(imageKeyword));
+      } else if (skorSwaraMode.mode_type === 'custom') {
+        // Check if custom_keyword exists before splitting
+        const customKeyword = detailSkorSwara.custom_keyword || "";
+        const customKeywordList = customKeyword
+          ? customKeyword.split(",").map(item => item.trim())
+          : [];
+        audioData.append("reference_text", script || "");
+        audioData.append("custom_topic", detailSkorSwara.custom_topic || "");
+        audioData.append("custom_keywords", JSON.stringify(customKeywordList));
+      }
+
+      const uploadAudioResponse = await axios.post(
+        "https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/analyze",
+        audioData,
+        {
+          headers: { ...audioData.getHeaders() },
+        }
+      );
+
+      const audio = uploadAudioResponse.data;
+
+      const checkAudioResult = async (taskId, maxAttempts = 100, delayMs = 2000) => {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          const response = await axios.get(
+            `https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/status/${taskId}`
+          );
+
+          if (response.data.result !== null) return response.data;
+
+          if (response.data.status === "failed") {
+            throw new Error(`Audio analysis failed: ${response.data.error}`);
+          }
+
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
+
+        throw new Error("Timeout waiting for audio result");
+      };
+
+      const audioResult = await checkAudioResult(audio.task_id);
+
+      // let tempo;
+      // let artikulasi;
+      // let jeda;
+      // let first_impression;
+      // let ekspresi;
+      // let gestur;
+      // let kata_pengisi;
+      // let kata_tidak_senonoh;
+
+      // PENILAIAN LEVEL 1 
+      const tempo = audioResult.result.tempo.score;
+      const artikulasi = audioResult.result.articulation.score;
+
+      const jeda = audioResult.result.tempo.has_long_pause ? 0 : 1;
+      const first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : 0;
+      const ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 1 : 0;
+      const gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
+        !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
+        ? 1 : 0;
+      const kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -0.25 : 1;
+      const kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
+
+      // PENILAIAN LEVEL 2
+      // const kontak_mata = ;
+
+      // PENILAIAN LEVEL 3
+      // const kesesuaian_topik = ;
+
+      // PENILAIAN LEVEL 4
+
+
+      // PENILAIAN LEVEL 5
+
+
+
+      // Hitung total point earned
+      const pointEarned =
+        tempo +
+        artikulasi +
+        jeda +
+        first_impression +
+        ekspresi +
+        gestur +
+        kata_pengisi +
+        kata_tidak_senonoh;
+
+
+      // Update data
+      await SkorSwara.update(
+        {
+          point_earned: pointEarned,
+          tempo: tempo,
+          artikulasi: artikulasi,
+          jeda: jeda,
+          first_impression: first_impression,
+          ekspresi: ekspresi,
+          gestur: gestur,
+          kata_pengisi: kata_pengisi,
+          kata_tidak_senonoh: kata_tidak_senonoh
+        },
+        {
+          where: { skor_swara_id: skor_swara_id }
+        }
+      );
+
+      const updatedData = await SkorSwara.findByPk(skor_swara_id);
+
+      res.json({
+        success: true,
+        message: "Video and audio processed successfully",
+        data: updatedData,
+      });
+
+
+
+      // res.json({
+      //   success: true,
+      //   message: "Video and audio processed",
+      //   data: { videoResult, audioResult, level, videoUrl }
+      // });
+
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to analyze video and audio",
+        error: error.message,
+      });
+    }
+  }
+
+  // static async submitHasil(req, res) {
+  //   let extracted = null;
+
+  //   try {
+  //     const userId = req.user.user_id;
+  //     const { image_id, mode_id, custom_topic, custom_keyword, skor_swara_topic_id } = req.body;
+  //     let level = 1;
+
+  //     // Pastikan file ada
+  //     if (!req.file) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: "Video file is required",
+  //       });
+  //     }
+
+  //     // 1️⃣ Upload video ke Cloudinary
+  //     const uploadToCloudinary = await cloudinary.uploader.upload(req.file.path, {
+  //       resource_type: "video",
+  //       folder: "swara-videos"
+  //     });
+
+  //     const videoUrl = uploadToCloudinary.secure_url;
+  //     console.log("📤 Video uploaded:", videoUrl);
+
+  //     // 2️⃣ Ambil user + mentee
+  //     const user = await User.findByPk(userId, {
+  //       include: [
+  //         {
+  //           model: Mentee,
+  //           as: 'mentee',
+  //           attributes: ['mentee_id', 'point', 'exercise_count', 'minute_count', 'token_count', 'last_token_reset']
+  //         }
+  //       ]
+  //     });
+
+  //     const point = user.mentee[0]?.point || 0;
+
+  //     if (point <= 100) level = 1;
+  //     else if (point <= 200) level = 2;
+  //     else level = 3;
+
+  //     // 4️⃣ Extract audio
+  //     extracted = await AudioExtractor.extractFromCloudinary(videoUrl);
+
+  //     // 5️⃣ Download video untuk dikirim ke API eksternal
+  //     const videoResponse = await axios.get(videoUrl, { responseType: "stream" });
+
+  //     const videoData = new FormData();
+  //     videoData.append("video", videoResponse.data, {
+  //       filename: "video.mp4",
+  //       contentType: "video/mp4",
+  //     });
+  //     videoData.append("level", level);
+  //     videoData.append("user_id", userId);
+
+  //     const uploadVideoResponse = await axios.post(
+  //       "https://cyberlace-swara-api.hf.space/api/v1/analyze",
+  //       videoData,
+  //       {
+  //         headers: { ...videoData.getHeaders() },
+  //       }
+  //     );
+
+  //     const { task_id } = uploadVideoResponse.data;
+
+  //     // 🔁 POLLING RESULT VIDEO
+  //     const checkResult = async (taskId, maxAttempts = 100, delayMs = 2000) => {
+  //       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  //         const response = await axios.get(
+  //           `https://cyberlace-swara-api.hf.space/api/v1/task/${taskId}`
+  //         );
+
+  //         if (response.data.result !== null) return response.data;
+
+  //         if (response.data.status === "failed") {
+  //           throw new Error(`Analysis failed: ${response.data.error}`);
+  //         }
+
+  //         await new Promise((r) => setTimeout(r, delayMs));
+  //       }
+
+  //       throw new Error("Timeout waiting for result");
+  //     };
+
+  //     const videoResult = await checkResult(task_id);
+
+  //     //====================================================================================================
+
+  //     const audioData = new FormData();
+  //     audioData.append("audio", fs.createReadStream(extracted.audioPath), {
+  //       filename: "extracted_audio.wav",
+  //       contentType: "audio/wav",
+  //     });
+
+  //     // Ambil topik jika ada
+  //     if (skor_swara_topic_id) {
+  //       const topicData = await SkorSwaraTopic.findByPk(skor_swara_topic_id);
+  //       if (!topicData) {
+  //         return res.status(404).json({
+  //           success: false,
+  //           message: "Topic not found",
+  //         });
+  //       }
+
+  //       const textTopic = topicData.text;
+  //       audioData.append("reference_text", textTopic);
+  //     }
+
+  //     // Ambil kunci jika ada
+  //     if (custom_keyword && custom_topic) {
+  //       audioData.append("custom_topic", custom_topic);
+  //     }
+
+  //     const uploadAudioResponse = await axios.post(
+  //       "https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/analyze",
+  //       audioData,
+  //       {
+  //         headers: { ...audioData.getHeaders() },
+  //       }
+  //     );
+
+  //     const audio = uploadAudioResponse.data;
+
+  //     const checkAudioResult = async (taskId, maxAttempts = 30, delayMs = 2000) => {
+  //       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  //         const response = await axios.get(
+  //           `https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/status/${taskId}`
+  //         );
+
+  //         if (response.data.result !== null) return response.data;
+
+  //         if (response.data.status === "failed") {
+  //           throw new Error(`Audio analysis failed: ${response.data.error}`);
+  //         }
+
+  //         await new Promise((r) => setTimeout(r, delayMs));
+  //       }
+
+  //       throw new Error("Timeout waiting for audio result");
+  //     };
+
+  //     const audioResult = await checkAudioResult(audio.task_id);
+
+  //     res.json({
+  //       success: true,
+  //       message: "Video and audio processed",
+  //       data: { videoResult, audioResult, level, videoUrl }
+  //     });
+
+  //   } catch (error) {
+  //     console.error(error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: "Failed to analyze video and audio",
+  //       error: error.message,
+  //     });
+  //   }
+  // }
 
   static async uploadAndAnalyze(req, res) {
     let videoPath = null;
@@ -321,7 +813,7 @@ class SkorSwaraController {
       }
 
       let topicInfo = {};
-      
+
       if (skorSwara.mode.mode_type === 'text' && skorSwara.skor_swara_topic) {
         topicInfo = {
           topic: skorSwara.skor_swara_topic.topic,
@@ -353,20 +845,23 @@ class SkorSwaraController {
         });
       }
 
-      const totalPoints =
-        aiResult.kelancaran_point +
-        aiResult.penggunaan_bahasa_point +
-        aiResult.ekspresi_point;
+      const totalPoints = aiResult.skor_total || 0;
 
       await skorSwara.update(
         {
           point_earned: totalPoints,
-          kelancaran_point: aiResult.kelancaran_point,
-          penggunaan_bahasa_point: aiResult.penggunaan_bahasa_point,
-          ekspresi_point: aiResult.ekspresi_point,
-          kelancaran_suggest: aiResult.kelancaran_suggest,
-          penggunaan_bahasa_suggest: aiResult.penggunaan_bahasa_suggest,
-          ekspresi_suggest: aiResult.ekspresi_suggest,
+          tempo: aiResult.tempo || 0,
+          artikulasi: aiResult.artikulasi || 0,
+          kontak_mata: aiResult.kontak_mata || 0,
+          kesesuaian_topik: aiResult.kesesuaian_topik || 0,
+          struktur: aiResult.struktur || 0,
+          jeda: aiResult.jeda || 0,
+          first_impression: aiResult.first_impression || 0,
+          ekspresi: aiResult.ekspresi || 0,
+          gestur: aiResult.gestur || 0,
+          kata_pengisi: aiResult.kata_pengisi || 0,
+          kata_tidak_senonoh: aiResult.kata_tidak_senonoh || 0,
+          skor_total: totalPoints,
         },
         { transaction }
       );
@@ -380,15 +875,18 @@ class SkorSwaraController {
           skor_swara_id: skorSwara.skor_swara_id,
           topic: skorSwara.skor_swara_topic,
           scores: {
-            kelancaran_point: aiResult.kelancaran_point,
-            penggunaan_bahasa_point: aiResult.penggunaan_bahasa_point,
-            ekspresi_point: aiResult.ekspresi_point,
-            total_points: totalPoints,
-          },
-          suggestions: {
-            kelancaran_suggest: aiResult.kelancaran_suggest,
-            penggunaan_bahasa_suggest: aiResult.penggunaan_bahasa_suggest,
-            ekspresi_suggest: aiResult.ekspresi_suggest,
+            tempo: aiResult.tempo,
+            artikulasi: aiResult.artikulasi,
+            kontak_mata: aiResult.kontak_mata,
+            kesesuaian_topik: aiResult.kesesuaian_topik,
+            struktur: aiResult.struktur,
+            jeda: aiResult.jeda,
+            first_impression: aiResult.first_impression,
+            ekspresi: aiResult.ekspresi,
+            gestur: aiResult.gestur,
+            kata_pengisi: aiResult.kata_pengisi,
+            kata_tidak_senonoh: aiResult.kata_tidak_senonoh,
+            skor_total: totalPoints,
           },
         },
       });
@@ -408,103 +906,6 @@ class SkorSwaraController {
         message: error.message || "Failed to analyze video",
         error:
           process.env.NODE_ENV === "development" ? error.message : undefined,
-      });
-    }
-  }
-
-  static async submitHasil(req, res) {
-    const transaction = await sequelize.transaction();
-
-    try {
-      const userId = req.user.user_id;
-      const {
-        skor_swara_id,
-        kelancaran_point,
-        penggunaan_bahasa_point,
-        ekspresi_point,
-        kelancaran_suggest,
-        penggunaan_bahasa_suggest,
-        ekspresi_suggest,
-      } = req.body;
-
-      const skorSwara = await SkorSwara.findOne({
-        where: {
-          skor_swara_id,
-          user_id: userId,
-        },
-        transaction,
-      });
-
-      if (!skorSwara) {
-        await transaction.rollback();
-        return res.status(404).json({
-          success: false,
-          message: "Skor Swara session not found",
-        });
-      }
-
-      if (skorSwara.point_earned > 0) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "This session has already been submitted",
-        });
-      }
-
-      const totalPoints =
-        kelancaran_point + penggunaan_bahasa_point + ekspresi_point;
-
-      await skorSwara.update(
-        {
-          point_earned: totalPoints,
-          kelancaran_point,
-          penggunaan_bahasa_point,
-          ekspresi_point,
-          kelancaran_suggest,
-          penggunaan_bahasa_suggest,
-          ekspresi_suggest,
-        },
-        { transaction }
-      );
-
-      await transaction.commit();
-
-      const updatedData = await SkorSwara.findOne({
-        where: { skor_swara_id },
-        include: [
-          {
-            model: SkorSwaraTopic,
-            as: "skor_swara_topic",
-            attributes: ["skor_swara_topic_id", "topic", "text"],
-          },
-        ],
-      });
-
-      res.json({
-        success: true,
-        message: "Hasil latihan submitted successfully",
-        data: {
-          skor_swara_id: updatedData.skor_swara_id,
-          topic: updatedData.skor_swara_topic,
-          scores: {
-            kelancaran_point,
-            penggunaan_bahasa_point,
-            ekspresi_point,
-            total_points: totalPoints,
-          },
-          suggestions: {
-            kelancaran_suggest,
-            penggunaan_bahasa_suggest,
-            ekspresi_suggest,
-          },
-        },
-      });
-    } catch (error) {
-      await transaction.rollback();
-      res.status(500).json({
-        success: false,
-        message: "Failed to submit hasil latihan",
-        error: error.message,
       });
     }
   }
@@ -542,9 +943,17 @@ class SkorSwaraController {
       let stats = {
         total_latihan: count,
         average_scores: {
-          kelancaran: 0,
-          penggunaan_bahasa: 0,
+          tempo: 0,
+          artikulasi: 0,
+          kontak_mata: 0,
+          kesesuaian_topik: 0,
+          struktur: 0,
+          jeda: 0,
+          first_impression: 0,
           ekspresi: 0,
+          gestur: 0,
+          kata_pengisi: 0,
+          kata_tidak_senonoh: 0,
           overall: 0,
         },
         total_points: 0,
@@ -557,41 +966,38 @@ class SkorSwaraController {
             point_earned: { [sequelize.Sequelize.Op.gt]: 0 },
           },
           attributes: [
-            [
-              sequelize.fn("AVG", sequelize.col("kelancaran_point")),
-              "avg_kelancaran",
-            ],
-            [
-              sequelize.fn("AVG", sequelize.col("penggunaan_bahasa_point")),
-              "avg_bahasa",
-            ],
-            [
-              sequelize.fn("AVG", sequelize.col("ekspresi_point")),
-              "avg_ekspresi",
-            ],
-            [
-              sequelize.fn("SUM", sequelize.col("point_earned")),
-              "total_points",
-            ],
+            [sequelize.fn("AVG", sequelize.col("tempo")), "avg_tempo"],
+            [sequelize.fn("AVG", sequelize.col("artikulasi")), "avg_artikulasi"],
+            [sequelize.fn("AVG", sequelize.col("kontak_mata")), "avg_kontak_mata"],
+            [sequelize.fn("AVG", sequelize.col("kesesuaian_topik")), "avg_kesesuaian_topik"],
+            [sequelize.fn("AVG", sequelize.col("struktur")), "avg_struktur"],
+            [sequelize.fn("AVG", sequelize.col("jeda")), "avg_jeda"],
+            [sequelize.fn("AVG", sequelize.col("first_impression")), "avg_first_impression"],
+            [sequelize.fn("AVG", sequelize.col("ekspresi")), "avg_ekspresi"],
+            [sequelize.fn("AVG", sequelize.col("gestur")), "avg_gestur"],
+            [sequelize.fn("AVG", sequelize.col("kata_pengisi")), "avg_kata_pengisi"],
+            [sequelize.fn("AVG", sequelize.col("kata_tidak_senonoh")), "avg_kata_tidak_senonoh"],
+            [sequelize.fn("AVG", sequelize.col("skor_total")), "avg_overall"],
+            [sequelize.fn("SUM", sequelize.col("point_earned")), "total_points"],
           ],
           raw: true,
         });
 
         if (allScores[0]) {
           stats.average_scores = {
-            kelancaran: parseFloat(allScores[0].avg_kelancaran || 0).toFixed(2),
-            penggunaan_bahasa: parseFloat(allScores[0].avg_bahasa || 0).toFixed(
-              2
-            ),
+            tempo: parseFloat(allScores[0].avg_tempo || 0).toFixed(2),
+            artikulasi: parseFloat(allScores[0].avg_artikulasi || 0).toFixed(2),
+            kontak_mata: parseFloat(allScores[0].avg_kontak_mata || 0).toFixed(2),
+            kesesuaian_topik: parseFloat(allScores[0].avg_kesesuaian_topik || 0).toFixed(2),
+            struktur: parseFloat(allScores[0].avg_struktur || 0).toFixed(2),
+            jeda: parseFloat(allScores[0].avg_jeda || 0).toFixed(2),
+            first_impression: parseFloat(allScores[0].avg_first_impression || 0).toFixed(2),
             ekspresi: parseFloat(allScores[0].avg_ekspresi || 0).toFixed(2),
+            gestur: parseFloat(allScores[0].avg_gestur || 0).toFixed(2),
+            kata_pengisi: parseFloat(allScores[0].avg_kata_pengisi || 0).toFixed(2),
+            kata_tidak_senonoh: parseFloat(allScores[0].avg_kata_tidak_senonoh || 0).toFixed(2),
+            overall: parseFloat(allScores[0].avg_overall || 0).toFixed(2),
           };
-
-          const overall =
-            (parseFloat(stats.average_scores.kelancaran) +
-              parseFloat(stats.average_scores.penggunaan_bahasa) +
-              parseFloat(stats.average_scores.ekspresi)) /
-            3;
-          stats.average_scores.overall = parseFloat(overall.toFixed(2));
           stats.total_points = parseInt(allScores[0].total_points || 0);
         }
       }
@@ -661,15 +1067,19 @@ class SkorSwaraController {
         skor_swara_id: skorSwara.skor_swara_id,
         mode: skorSwara.mode,
         scores: {
-          kelancaran_point: skorSwara.kelancaran_point,
-          penggunaan_bahasa_point: skorSwara.penggunaan_bahasa_point,
-          ekspresi_point: skorSwara.ekspresi_point,
+          tempo: skorSwara.tempo,
+          artikulasi: skorSwara.artikulasi,
+          kontak_mata: skorSwara.kontak_mata,
+          kesesuaian_topik: skorSwara.kesesuaian_topik,
+          struktur: skorSwara.struktur,
+          jeda: skorSwara.jeda,
+          first_impression: skorSwara.first_impression,
+          ekspresi: skorSwara.ekspresi,
+          gestur: skorSwara.gestur,
+          kata_pengisi: skorSwara.kata_pengisi,
+          kata_tidak_senonoh: skorSwara.kata_tidak_senonoh,
+          skor_total: skorSwara.skor_total,
           total_points: skorSwara.point_earned,
-        },
-        suggestions: {
-          kelancaran_suggest: skorSwara.kelancaran_suggest,
-          penggunaan_bahasa_suggest: skorSwara.penggunaan_bahasa_suggest,
-          ekspresi_suggest: skorSwara.ekspresi_suggest,
         },
       };
 
@@ -863,6 +1273,193 @@ class SkorSwaraController {
       });
     }
   }
+
+  static async createImageTopic(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const { image_keyword, image_topic } = req.body;
+
+      // Validasi: pastikan file image ada
+      if (!req.file) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Image file is required",
+        });
+      }
+
+      // Cloudinary sudah auto-upload via multer-storage-cloudinary
+      // URL langsung tersedia di req.file.path
+      const image_url = req.file.path; // Cloudinary secure_url
+
+      // Simpan ke database
+      const newImageTopic = await SkorSwaraImage.create(
+        {
+          image_url,
+          image_keyword,
+          image_topic,
+        },
+        { transaction }
+      );
+
+      await transaction.commit();
+
+      res.status(201).json({
+        success: true,
+        message: "Image topic added successfully",
+        data: {
+          image_id: newImageTopic.image_id,
+          image_topic: newImageTopic.image_topic,
+          image_keyword: newImageTopic.image_keyword,
+          image_url: newImageTopic.image_url,
+          cloudinary_public_id: req.file.filename, // untuk delete image nanti
+        },
+      });
+    } catch (error) {
+      await transaction.rollback();
+
+      // Jika ada error, hapus image dari Cloudinary
+      if (req.file?.filename) {
+        try {
+          await cloudinary.uploader.destroy(req.file.filename, {
+            resource_type: 'image'
+          });
+          console.log("❌ Deleted uploaded image from Cloudinary due to error");
+        } catch (deleteError) {
+          console.error("Failed to delete image from Cloudinary:", deleteError);
+        }
+      }
+
+      console.error("Create Image Topic Error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to add image topic",
+        error: error.message,
+      });
+    }
+  }
+
+
+  static async deleteImageTopic(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const { id } = req.params;
+
+      const imageTopic = await SkorSwaraImage.findByPk(id);
+
+      if (!imageTopic) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Image topic not found",
+        });
+      }
+
+      // Hapus image dari Cloudinary
+      const imageUrl = imageTopic.image_url;
+      if (imageUrl) {
+        try {
+          // Extract public_id dari URL
+          const publicId = imageUrl.split('/').slice(-2).join('/').split('.')[0];
+          await cloudinary.uploader.destroy(publicId, {
+            resource_type: 'image'
+          });
+          console.log("🗑️ Image deleted from Cloudinary");
+        } catch (deleteError) {
+          console.error("Failed to delete image from Cloudinary:", deleteError);
+        }
+      }
+
+      // Hapus dari database
+      await SkorSwaraImage.destroy({
+        where: { image_id: id },
+        transaction,
+      });
+
+      await transaction.commit();
+
+      res.status(200).json({
+        success: true,
+        message: "Image topic deleted successfully",
+      });
+    } catch (error) {
+      await transaction.rollback();
+      console.error("Delete Image Topic Error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete image topic",
+        error: error.message,
+      });
+    }
+  }
+
+  static async updateImageTopic(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const { id } = req.params;
+      const { image_keyword, image_topic } = req.body;
+
+      const existingImageTopic = await SkorSwaraImage.findByPk(id, { transaction });
+
+      if (!existingImageTopic) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Image topic not found",
+        });
+      }
+
+      const updateData = {
+        image_keyword: image_keyword || existingImageTopic.image_keyword,
+        image_topic: image_topic || existingImageTopic.image_topic,
+      };
+
+      if (req.file) {
+        updateData.image_url = req.file.path;
+
+        const oldImageUrl = existingImageTopic.image_url;
+        if (oldImageUrl) {
+          try {
+            const publicId = oldImageUrl.split('/').slice(-2).join('/').split('.')[0];
+            await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
+          } catch (deleteErr) {
+            console.error("Failed to delete old image:", deleteErr);
+          }
+        }
+      }
+
+      await SkorSwaraImage.update(updateData, {
+        where: { image_id: id },
+        transaction,
+      });
+
+      // GET NEW DATA BEFORE COMMIT
+      const updatedImageTopic = await SkorSwaraImage.findByPk(id, { transaction });
+
+      await transaction.commit();
+
+      res.status(200).json({
+        success: true,
+        message: "Image topic updated successfully",
+        data: updatedImageTopic,
+      });
+    } catch (error) {
+      // Only rollback if still active
+      if (!transaction.finished) {
+        await transaction.rollback();
+      }
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to update image topic",
+        error: error.message,
+      });
+    }
+  }
+
 }
 
 module.exports = SkorSwaraController;

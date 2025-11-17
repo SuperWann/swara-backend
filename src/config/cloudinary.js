@@ -10,7 +10,7 @@ cloudinary.config({
 });
 
 // Configure multer storage for Cloudinary
-const storage = new CloudinaryStorage({
+const videoStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'swara-videos',
@@ -20,7 +20,7 @@ const storage = new CloudinaryStorage({
   }
 });
 
-const fileFilter = (req, file, cb) => {
+const videoFileFilter = (req, file, cb) => {
   const allowedMimes = [
     'video/mp4',
     'video/mpeg',
@@ -37,11 +37,51 @@ const fileFilter = (req, file, cb) => {
 };
 
 const uploadVideo = multer({
-  storage: storage,
-  fileFilter: fileFilter,
+  storage: videoStorage,
+  fileFilter: videoFileFilter,
   limits: {
     fileSize: 100 * 1024 * 1024 // 100MB
   }
 });
 
-module.exports = { cloudinary, uploadVideo };
+// ==================== IMAGE UPLOAD ====================
+
+const imageStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'swara-image-topics',
+    resource_type: 'image',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    transformation: [
+      { width: 1200, height: 1200, crop: 'limit' },
+      { quality: 'auto' },
+      { fetch_format: 'auto' }
+    ]
+  }
+});
+
+const imageFileFilter = (req, file, cb) => {
+  const allowedMimes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp'
+  ];
+
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only image files are allowed (jpg, jpeg, png, gif, webp)'), false);
+  }
+};
+
+const uploadImage = multer({
+  storage: imageStorage,
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB
+  }
+});
+
+module.exports = { cloudinary, uploadVideo, uploadImage };

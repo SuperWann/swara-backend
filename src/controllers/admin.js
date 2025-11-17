@@ -1,55 +1,85 @@
 const jwt = require('jsonwebtoken');
-const { User, Role, Gender, Badge } = require('../models');
+const { User, Role, Gender, SkorSwara, PodiumText, PodiumCategory } = require('../models');
 const { Op, fn, col, literal } = require('sequelize');
 
 class AdminController {
-  // Get All Users (Admin)
   static async getAllUsers(req, res) {
     try {
       const { page = 1, limit = 10, search = '' } = req.query;
       const offset = (page - 1) * limit;
 
-      const whereClause = search ? {
-        [Op.or]: [
-          { full_name: { [Op.like]: `%${search}%` } },
-          { email: { [Op.like]: `%${search}%` } }
-        ]
-      } : {};
+      const whereClause = search
+        ? {
+          [Op.or]: [
+            { full_name: { [Op.like]: `%${search}%` } },
+            { email: { [Op.like]: `%${search}%` } }
+          ]
+        }
+        : {};
 
       const { count, rows: users } = await User.findAndCountAll({
         where: whereClause,
         include: [
           {
-            model: Role, as: 'role', attributes: ['role_id', 'role_name'], where: {
+            model: Role,
+            as: "role",
+            attributes: ["role_id", "role_name"],
+            where: {
               role_name: {
-                [Op.notIn]: ['admin', 'mentor']
+                [Op.notIn]: ["admin", "mentor"]
               }
             }
           },
-          { model: Gender, as: 'gender', attributes: ['gender_id', 'gender'] }
+          {
+            model: Gender,
+            as: "gender",
+            attributes: ["gender_id", "gender"]
+          },
+          {
+            model: SkorSwara,
+            as: "skorSwara",
+            attributes: [] // Kosongkan untuk tidak duplikat data
+          }
         ],
+        attributes: {
+          include: [
+            [
+              literal(`(
+                SELECT COALESCE(SUM(
+                  kelancaran_point + penggunaan_bahasa_point + ekspresi_point
+                ), 0)
+                FROM skor_swara
+                WHERE skor_swara.user_id = User.user_id
+              )`),
+              "skorSwara"
+            ]
+          ]
+        },
+        group: ["User.user_id", "role.role_id", "gender.gender_id"],
         limit: parseInt(limit),
         offset: parseInt(offset),
-        order: [['created_at', 'DESC']]
+        order: [["created_at", "DESC"]],
+        subQuery: false, // Penting untuk menghindari konflik GROUP BY
+        distinct: true // Untuk count yang benar
       });
 
       res.json({
         success: true,
-        message: 'Users retrieved successfully',
+        message: "Users retrieved successfully",
         data: {
           users,
           pagination: {
-            total: count,
+            total: count.length ?? count,
             page: parseInt(page),
             limit: parseInt(limit),
-            totalPages: Math.ceil(count / limit)
+            totalPages: Math.ceil((count.length ?? count) / limit)
           }
         }
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get users',
+        message: "Failed to get users",
         error: error.message
       });
     }
@@ -135,7 +165,7 @@ class AdminController {
     }
   }
 
-  static async getUserDashboardStats(req, res) {
+  static async getStatsManajemenPengguna(req, res) {
     try {
       // Total pengguna
       const totalUsers = await User.count();
@@ -178,6 +208,78 @@ class AdminController {
       return res.status(500).json({
         success: false,
         message: "Failed to fetch dashboard statistics",
+        error: error.message
+      });
+    }
+  }
+
+  static async getStatsDashboardAdmin(req, res) {
+    try {
+      const activeUsers = await User.count({
+        where: { status: "aktif" }
+      });
+
+      const totalMentors = await User.count({
+        include: [
+          {
+            model: Role,
+            as: "role",
+            where: { role_name: "mentor" },
+          },
+        ],
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          activeUsers,
+          totalMentors,
+        },
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch admin dashboard statistics",
+        error: error.message
+      });
+    }
+  }
+
+  static async getPodiumStats(req, res) {
+    try {
+      const totalPodiumTexts = await PodiumText.count();
+
+      const getAllCategorieswithCounts = await PodiumCategory.findAll({
+        attributes: [
+          'podium_category_id',
+          'podium_category',
+          'is_interview',
+          [fn('COUNT', col('podium_category_id')), 'count']
+        ],
+        group: ['podium_category_id', 'podium_category', 'is_interview'],
+        raw: true
+      });
+
+      const newPodiumTextsThisMonth = await PodiumText.count({
+        where: literal(`
+        MONTH(created_at) = MONTH(NOW())
+        AND YEAR(created_at) = YEAR(NOW())
+      `)
+      });
+
+      res.json({
+        success: true,
+        message: 'Podium texts retrieved successfully',
+        data: {
+          totalPodiumTexts,
+          categories: getAllCategorieswithCounts,
+          newPodiumTextsThisMonth
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get podium texts',
         error: error.message
       });
     }

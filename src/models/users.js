@@ -1,4 +1,5 @@
 const bcrypt = require('bcrypt');
+const { model } = require('../services/chatgptService');
 
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
@@ -45,6 +46,10 @@ module.exports = (sequelize, DataTypes) => {
       validate: {
         isDate: { msg: 'Invalid date format' }
       }
+    },
+    profile_picture: {
+      type: DataTypes.TEXT,
+      allowNull: true
     },
     address: {
       type: DataTypes.TEXT,
@@ -143,6 +148,14 @@ module.exports = (sequelize, DataTypes) => {
     User.hasMany(models.Mentoring, {
       foreignKey: 'mentee_user_id',
       as: 'menteeSessions'
+    });
+    User.hasMany(models.SkorSwara, {
+      foreignKey: 'user_id',
+      as: 'skorSwara'
+    });
+    User.hasMany(models.MentorActivity, {
+      foreignKey: 'user_id',
+      as: 'mentorActivities'
     });
   };
 

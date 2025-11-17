@@ -65,6 +65,8 @@ router.use(auth);
 // Create new content with video upload
 router.post('/', uploadVideo.single('video'), createContentValidation, validate, InspiraController.createContent);
 
+router.put('/:id', uploadVideo.single('video'), createContentValidation, validate, InspiraController.updateContent);
+
 // Get all content with filters
 router.get('/', searchValidation, validate, InspiraController.getAllContent);
 
@@ -81,6 +83,5 @@ router.post('/:id/view', InspiraController.addView);
 router.delete('/:id', InspiraController.deleteContent);
 
 // Update content
-router.put('/:id', uploadVideo.single('video'), createContentValidation, validate, InspiraController.updateContent);
 
 module.exports = router;

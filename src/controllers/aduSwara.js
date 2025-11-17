@@ -679,7 +679,8 @@ class AduSwaraController {
       const topic = await AduSwaraTopic.create(
         {
           title,
-          adu_swara_category_id
+          adu_swara_category_id,
+          image: req.file ? req.file.path : null
         },
         { transaction }
       );
@@ -716,6 +717,105 @@ class AduSwaraController {
       });
     }
   }
+
+  static async deleteAduSwaraTopic(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const { id } = req.params;
+
+      const topic = await AduSwaraTopic.findByPk(id, { transaction });
+
+      if (!topic) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Topic not found"
+        });
+      }
+
+      await topic.destroy({ transaction });
+      await transaction.commit();
+
+      return res.json({
+        success: true,
+        message: "Topic deleted successfully"
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      return res.status(500).json({
+        success: false,
+        message: "Failed to delete topic",
+        error: error.message
+      });
+    }
+  }
+
+  static async updateAduSwaraTopic(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const { id } = req.params;
+      const { title, adu_swara_category_id, keywords } = req.body;
+
+      const topic = await AduSwaraTopic.findByPk(id, { transaction });
+
+      if (!topic) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Topic not found"
+        });
+      }
+
+      await topic.update(
+        {
+          title: title || topic.title,
+          adu_swara_category_id: adu_swara_category_id || topic.adu_swara_category_id,
+          image: req.file ? req.file.path : topic.image
+        },
+        { transaction }
+      );
+
+      // ===== Keyword Handling =====
+      let keywordArray = [];
+
+      if (keywords) {
+        keywordArray = keywords
+          .split(",")
+          .map(k => k.trim())
+          .filter(Boolean);
+
+        for (const word of keywordArray) {
+          const [keyword] = await Keyword.findOrCreate({
+            where: { keyword: word },
+            defaults: { keyword: word },
+            transaction
+          });
+
+          await topic.addKeyword(keyword, { transaction });
+        }
+      }
+
+      await transaction.commit();
+
+      return res.json({
+        success: true,
+        message: "Topic updated successfully",
+        data: topic
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update topic",
+        error: error.message
+      });
+    }
+  }
+
 }
 
 module.exports = AduSwaraController;

@@ -3,6 +3,7 @@ const { body } = require('express-validator');
 const UserController = require('../controllers/users');
 const { auth, checkRole, authenticateToken } = require('../middleware/auth');
 const { validate } = require('../middleware/validator');
+const { uploadImage } = require('../config/cloudinary');
 
 const router = express.Router();
 
@@ -43,6 +44,14 @@ const updateProfileValidation = [
   body('phone_number')
     .optional()
     .matches(/^[0-9+\-\s()]*$/).withMessage('Invalid phone number format'),
+  body('address')
+    .optional()
+    .isString().withMessage('Address must be a string')
+    .trim()
+    .isLength({ min: 3, max: 255 }).withMessage('Address must be between 3-255 characters'),
+  body('profile_picture')
+    .optional()
+    .isString().withMessage('Profile picture must be a string'),
   body('birth_date')
     .optional()
     .isDate().withMessage('Invalid date format'),
@@ -71,7 +80,7 @@ router.post('/login', loginValidation, validate, UserController.login);
 // Protected routes
 router.post('/logout', authenticateToken, UserController.logout);
 router.get('/profile', authenticateToken, UserController.getProfile);
-router.put('/profile', authenticateToken, updateProfileValidation, validate, UserController.updateProfile);
+router.put('/profile', uploadImage.single('image'), authenticateToken, updateProfileValidation, validate, UserController.updateProfile);
 router.put('/change-password', authenticateToken, changePasswordValidation, validate, UserController.changePassword);
 router.delete('/account', authenticateToken, deleteAccountValidation, validate, UserController.deleteAccount);
 router.get('/badges', authenticateToken, UserController.getUserBadges);

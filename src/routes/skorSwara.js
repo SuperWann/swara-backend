@@ -4,31 +4,14 @@ const SkorSwaraController = require('../controllers/skorSwara');
 const { auth } = require('../middleware/auth');
 const { validate } = require('../middleware/validator');
 const { upload } = require('../config/upload');
+const { uploadImage } = require('../config/cloudinary');
 
 const router = express.Router();
 
 const submitHasilValidation = [
   body('skor_swara_id')
+    .optional()
     .notEmpty().withMessage('Skor Swara ID is required')
-    .isInt({ min: 1 }).withMessage('Skor Swara ID must be a valid number'),
-  body('kelancaran_point')
-    .notEmpty().withMessage('Kelancaran point is required')
-    .isInt({ min: 0, max: 5 }).withMessage('Kelancaran point must be between 0-5'),
-  body('penggunaan_bahasa_point')
-    .notEmpty().withMessage('Penggunaan bahasa point is required')
-    .isInt({ min: 0, max: 5 }).withMessage('Penggunaan bahasa point must be between 0-5'),
-  body('ekspresi_point')
-    .notEmpty().withMessage('Ekspresi point is required')
-    .isInt({ min: 0, max: 5 }).withMessage('Ekspresi point must be between 0-5'),
-  body('kelancaran_suggest')
-    .notEmpty().withMessage('Kelancaran suggestion is required')
-    .isString().withMessage('Kelancaran suggestion must be a string'),
-  body('penggunaan_bahasa_suggest')
-    .notEmpty().withMessage('Penggunaan bahasa suggestion is required')
-    .isString().withMessage('Penggunaan bahasa suggestion must be a string'),
-  body('ekspresi_suggest')
-    .notEmpty().withMessage('Ekspresi suggestion is required')
-    .isString().withMessage('Ekspresi suggestion must be a string')
 ];
 
 const startLatihanValidation = [
@@ -93,13 +76,13 @@ router.post('/start', startLatihanValidation, validate, SkorSwaraController.star
 
 // Upload video and get AI analysis
 router.post(
-  '/upload', 
-  upload.single('video'), 
+  '/upload',
+  upload.single('video'),
   SkorSwaraController.uploadAndAnalyze
 );
 
 // Submit hasil latihan (from AI) -- sementara
-router.post('/submit', submitHasilValidation, validate, SkorSwaraController.submitHasil);
+router.post('/submit', upload.single('video'), submitHasilValidation, validate, SkorSwaraController.submitHasil);
 
 // Get user's riwayat latihan
 router.get('/riwayat', paginationValidation, validate, SkorSwaraController.getRiwayat);
@@ -118,5 +101,16 @@ router.delete('/topics/:id', SkorSwaraController.deleteTopic);
 
 // Update topic
 router.put('/topics/:id', updateTopicValidation, validate, SkorSwaraController.updateTopic);
+
+
+
+// Create image topic
+router.post('/image-topics', uploadImage.single('image'), SkorSwaraController.createImageTopic);
+
+// Delete image topic
+router.delete('/image-topics/:id', SkorSwaraController.deleteImageTopic);
+
+// Update image topic
+router.put('/image-topics/:id', uploadImage.single('image'), SkorSwaraController.updateImageTopic);
 
 module.exports = router;

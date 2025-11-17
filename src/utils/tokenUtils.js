@@ -6,6 +6,7 @@ const generateAccessToken = (user) => {
     { 
       user_id: user.user_id, 
       email: user.email,
+      point: user.mentee ? user.mentee.point : 0,
     },
     process.env.JWT_SECRET,
     { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || '1m' }

@@ -7,6 +7,7 @@ const MentorProfile = db.MentorProfile;
 const Mentoring = db.Mentoring;
 const MetodeMentoring = db.MetodeMentoring;
 const MentoringPayment = db.MentoringPayment;
+const MentorActivity = db.MentorActivity;
 
 /**
  * Get semua mentor
@@ -14,9 +15,9 @@ const MentoringPayment = db.MentoringPayment;
 exports.getAllMentors = async (req, res) => {
   try {
     const { page = 1, limit = 10, search, position, minFee, maxFee } = req.query;
-    
+
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    
+
     // Build where clause
     const whereClause = {};
 
@@ -89,7 +90,12 @@ exports.getMentorDetail = async (req, res) => {
       include: [{
         model: User,
         as: 'user',
-        attributes: ['user_id', 'full_name', 'email', 'phone_number', 'birth_date', 'address']
+        attributes: ['user_id', 'full_name', 'email', 'phone_number', 'birth_date', 'address'],
+        include: [{
+          model: MentorActivity,
+          as: 'mentorActivities',
+          attributes: ['mentor_activity_id', 'judul_aktivitas', 'deskripsi', 'created_at']
+        }]
       }]
     });
 
@@ -141,7 +147,7 @@ exports.getMentorDetail = async (req, res) => {
  */
 exports.scheduleMentoring = async (req, res) => {
   const transaction = await db.sequelize.transaction();
-  
+
   try {
     const userId = req.user.user_id;
     const { mentor_user_id, jadwal, tujuan_mentoring, metode_mentoring_id } = req.body;
@@ -347,7 +353,7 @@ exports.getUserMentoringSessions = async (req, res) => {
     const categorizedSessions = sessions.map(session => {
       const sessionDate = new Date(session.jadwal);
       let sessionStatus = 'scheduled';
-      
+
       if (session.payment && session.payment.transaction_status === 'settlement') {
         if (sessionDate < now) {
           sessionStatus = 'completed';
@@ -439,7 +445,7 @@ exports.getMentoringDetail = async (req, res) => {
     const now = new Date();
     const sessionDate = new Date(session.jadwal);
     let sessionStatus = 'scheduled';
-    
+
     if (session.payment && session.payment.transaction_status === 'settlement') {
       if (sessionDate < now) {
         sessionStatus = 'completed';
@@ -475,24 +481,68 @@ exports.getMentoringDetail = async (req, res) => {
  */
 exports.handlePaymentNotification = async (req, res) => {
   try {
+    console.log('📨 Received Midtrans notification:', req.body);
+    
     const notification = req.body;
 
-    // Handle notification dari Midtrans
-    const statusResponse = await midtransService.handleNotification(notification);
+    // Validate required fields
+    if (!notification.order_id || !notification.transaction_status) {
+      console.error('Invalid notification data:', notification);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification data'
+      });
+    }
 
-    // Find payment record
+    // Detect if this is manual testing (no real Midtrans transaction)
+    const isManualTest = !notification.signature_key || 
+                         notification.signature_key === 'test-signature' ||
+                         process.env.MIDTRANS_SKIP_VERIFICATION === 'true';
+
+    if (isManualTest) {
+      console.log('🧪 TESTING MODE: Manual webhook test detected');
+    }
+
+    // Handle notification dari Midtrans
+    const statusResponse = await midtransService.handleNotification(notification, isManualTest);
+
+    console.log('Status response processed:', statusResponse);
+
+    // Find payment record - use findByPk or simple where
     const payment = await MentoringPayment.findOne({
       where: {
         order_id: statusResponse.orderId
       }
     });
 
+    console.log('Payment found:', payment ? payment.toJSON() : null);
+
     if (!payment) {
+      console.error('Payment not found for order_id:', statusResponse.orderId);
       return res.status(404).json({
         success: false,
         message: 'Payment not found'
       });
     }
+
+    // Get mentoring details separately
+    const mentoring = await Mentoring.findOne({
+      where: {
+        mentoring_id: payment.mentoring_id
+      },
+      include: [
+        {
+          model: User,
+          as: 'mentee',
+          attributes: ['user_id', 'full_name', 'email']
+        },
+        {
+          model: User,
+          as: 'mentor',
+          attributes: ['user_id', 'full_name', 'email']
+        }
+      ]
+    });
 
     // Update payment status
     const updateData = {
@@ -502,27 +552,62 @@ exports.handlePaymentNotification = async (req, res) => {
       fraud_status: statusResponse.fraudStatus
     };
 
-    // If payment is successful
-    if (statusResponse.transactionStatus === 'settlement' || statusResponse.transactionStatus === 'capture') {
+    // Handle different transaction statuses
+    if (statusResponse.transactionStatus === 'settlement' || 
+        (statusResponse.transactionStatus === 'capture' && statusResponse.fraudStatus === 'accept')) {
+      // Payment successful
       updateData.paid_at = new Date();
+      updateData.transaction_status = 'settlement';
+      
+      console.log('✅ Payment SUCCESS for order:', statusResponse.orderId);
+      
+      if (mentoring) {
+        console.log('Mentoring details:', {
+          mentoring_id: mentoring.mentoring_id,
+          mentee: mentoring.mentee ? mentoring.mentee.full_name : 'N/A',
+          mentor: mentoring.mentor ? mentoring.mentor.full_name : 'N/A',
+          jadwal: mentoring.jadwal
+        });
+        
+        // TODO: Send email notification to mentee and mentor
+        // TODO: Add to calendar or schedule notification
+      }
+      
+    } else if (statusResponse.transactionStatus === 'pending') {
+      console.log('⏳ Payment PENDING for order:', statusResponse.orderId);
+      
+    } else if (statusResponse.transactionStatus === 'deny' || 
+               statusResponse.transactionStatus === 'expire' || 
+               statusResponse.transactionStatus === 'cancel') {
+      console.log('❌ Payment FAILED for order:', statusResponse.orderId, '- Status:', statusResponse.transactionStatus);
+      
+    } else if (statusResponse.transactionStatus === 'refund') {
+      console.log('↩️ Payment REFUNDED for order:', statusResponse.orderId);
     }
 
+    // Update payment record
     await payment.update(updateData);
 
-    console.log('Payment notification processed:', {
+    console.log('Payment notification processed successfully:', {
       orderId: statusResponse.orderId,
-      status: statusResponse.transactionStatus
+      status: statusResponse.transactionStatus,
+      payment_id: payment.payment_id
     });
 
+    // Midtrans expects 200 OK response
     res.status(200).json({
       success: true,
-      message: 'Payment notification processed successfully'
+      message: 'Notification received successfully'
     });
+    
   } catch (error) {
-    console.error('Handle payment notification error:', error);
-    res.status(500).json({
+    console.error('❌ Handle payment notification error:', error);
+    console.error('Error stack:', error.stack);
+    
+    // Still return 200 to Midtrans to prevent retry
+    res.status(200).json({
       success: false,
-      message: 'Failed to process payment notification',
+      message: 'Notification received but processing failed',
       error: error.message
     });
   }
@@ -545,6 +630,10 @@ exports.checkPaymentStatus = async (req, res) => {
       include: [{
         model: MentoringPayment,
         as: 'payment'
+      }, {
+        model: User,
+        as: 'mentor',
+        attributes: ['user_id', 'full_name']
       }]
     });
 
@@ -555,29 +644,53 @@ exports.checkPaymentStatus = async (req, res) => {
       });
     }
 
+    console.log('Checking payment status for order:', mentoring.payment.order_id);
+
     // Check status from Midtrans
     const status = await midtransService.checkTransactionStatus(mentoring.payment.order_id);
 
-    // Update local payment record
-    await mentoring.payment.update({
-      transaction_status: status.transactionStatus,
-      payment_type: status.paymentType,
-      transaction_id: status.transactionId,
-      fraud_status: status.fraudStatus,
-      paid_at: (status.transactionStatus === 'settlement' || status.transactionStatus === 'capture') 
-        ? new Date() 
-        : mentoring.payment.paid_at
-    });
+    console.log('Midtrans status response:', status);
+
+    // Update local payment record if status changed
+    if (status.transactionStatus !== mentoring.payment.transaction_status) {
+      const updateData = {
+        transaction_status: status.transactionStatus,
+        payment_type: status.paymentType,
+        transaction_id: status.transactionId,
+        fraud_status: status.fraudStatus
+      };
+
+      if ((status.transactionStatus === 'settlement' || 
+           (status.transactionStatus === 'capture' && status.fraudStatus === 'accept')) 
+          && !mentoring.payment.paid_at) {
+        updateData.paid_at = new Date();
+        updateData.transaction_status = 'settlement';
+        
+        console.log('✅ Payment confirmed via status check:', mentoring.payment.order_id);
+      }
+
+      await mentoring.payment.update(updateData);
+      console.log('Payment record updated in database');
+    }
 
     res.status(200).json({
       success: true,
       message: 'Payment status retrieved successfully',
       data: {
-        order_id: status.orderId,
-        transaction_status: status.transactionStatus,
-        payment_type: status.paymentType,
-        gross_amount: status.grossAmount,
-        transaction_time: status.transactionTime
+        mentoring_id: mentoring.mentoring_id,
+        mentor: {
+          name: mentoring.mentor.full_name
+        },
+        jadwal: mentoring.jadwal,
+        payment: {
+          order_id: status.orderId,
+          transaction_status: status.transactionStatus,
+          payment_type: status.paymentType,
+          gross_amount: status.grossAmount,
+          transaction_time: status.transactionTime,
+          paid_at: mentoring.payment.paid_at,
+          payment_url: mentoring.payment.payment_url
+        }
       }
     });
   } catch (error) {

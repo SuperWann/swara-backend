@@ -3,66 +3,37 @@ module.exports = (sequelize, DataTypes) => {
     "SkorSwara",
     {
       skor_swara_id: {
-        type: DataTypes.BIGINT,
+        type: DataTypes.INTEGER,
         primaryKey: true,
         autoIncrement: true,
       },
       point_earned: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.FLOAT,
         allowNull: false,
         defaultValue: 0,
-        validate: {
-          min: { args: [0], msg: "Points cannot be negative" },
-        },
-      },
-      kelancaran_point: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
-        validate: {
-          min: { args: [0], msg: "Kelancaran point cannot be negative" },
-          max: { args: [5], msg: "Kelancaran point cannot exceed 5" },
-        },
-      },
-      penggunaan_bahasa_point: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
-        validate: {
-          min: { args: [0], msg: "Penggunaan bahasa point cannot be negative" },
-          max: { args: [5], msg: "Penggunaan bahasa point cannot exceed 5" },
-        },
-      },
-      ekspresi_point: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0,
-        validate: {
-          min: { args: [0], msg: "Ekspresi point cannot be negative" },
-          max: { args: [5], msg: "Ekspresi point cannot exceed 5" },
-        },
-      },
-      kelancaran_suggest: {
-        type: DataTypes.TEXT,
-        allowNull: false,
-        defaultValue: "",
-      },
-      penggunaan_bahasa_suggest: {
-        type: DataTypes.TEXT,
-        allowNull: false,
-        defaultValue: "",
-      },
-      ekspresi_suggest: {
-        type: DataTypes.TEXT,
-        allowNull: false,
-        defaultValue: "",
       },
       skor_swara_topic_id: {
-        type: DataTypes.BIGINT,
-        allowNull: true, // Nullable untuk mode image dan custom
+        type: DataTypes.INTEGER,
+        allowNull: true,
         references: {
           model: "skor_swara_topics",
           key: "skor_swara_topic_id",
+        },
+      },
+      user_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+          model: "users",
+          key: "user_id",
+        },
+      },
+      image_id: {
+        type: DataTypes.BIGINT,
+        allowNull: true,
+        references: {
+          model: "skor_swara_images",
+          key: "image_id",
         },
       },
       mode_id: {
@@ -74,37 +45,71 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
       custom_topic: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: true,
-        validate: {
-          customTopicValidator(value) {
-            if (this.mode_id === 3 && !value) {
-              throw new Error("Custom topic is required for custom mode");
-            }
-          },
-        },
       },
       custom_keyword: {
         type: DataTypes.TEXT,
         allowNull: true,
-        comment: "Generated keywords from AI for custom topic evaluation",
       },
-      image_id: {
-        type: DataTypes.BIGINT,
-        allowNull: true,
-        references: {
-          model: "skor_swara_images",
-          key: "image_id",
-        },
-        comment: "Reference to image for image mode",
-      },
-      user_id: {
-        type: DataTypes.BIGINT,
+      tempo: {
+        type: DataTypes.FLOAT,
         allowNull: false,
-        references: {
-          model: "users",
-          key: "user_id",
-        },
+        defaultValue: 0,
+      },
+      artikulasi: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      kontak_mata: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      kesesuaian_topik: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      struktur: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      jeda: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      first_impression: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      ekspresi: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      gestur: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      kata_pengisi: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      kata_tidak_senonoh: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      script: {
+        type: DataTypes.TEXT,
+        allowNull: true,
       },
     },
     {

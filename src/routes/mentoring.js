@@ -60,8 +60,15 @@ router.get(
 );
 
 // Webhook for Midtrans payment notification (no auth needed)
+// Add logging middleware for debugging
 router.post(
   "/payment/notification",
+  (req, res, next) => {
+    console.log('📨 Webhook received at:', new Date().toISOString());
+    console.log('Webhook Headers:', req.headers);
+    console.log('Webhook Body:', req.body);
+    next();
+  },
   mentoringController.handlePaymentNotification
 );
 

@@ -17,167 +17,6 @@ async function getOrCreateList(model, field, list, transaction) {
 
 class InspiraController {
 
-  // static async createContent(req, res) {
-  //   const transaction = await sequelize.transaction();
-
-  //   try {
-  //     const {
-  //       title,
-  //       description,
-  //       category_content_swara_id,
-  //       level_content_swara_id,
-  //       speaker,
-  //       video_duration,
-  //       gaya_penyampaian_ids,
-  //       struktur_ids,
-  //       teknik_pembuka_ids,
-  //       tag_ids
-  //     } = req.body;
-
-  //     // Validate required fields
-  //     if (!title || !description || !category_content_swara_id || !level_content_swara_id || !speaker || !video_duration) {
-  //       if (req.file) {
-  //         await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
-  //       }
-  //       await transaction.rollback();
-  //       return res.status(400).json({
-  //         success: false,
-  //         message: 'Missing required fields'
-  //       });
-  //     }
-
-  //     // Check if video file is uploaded
-  //     if (!req.file) {
-  //       await transaction.rollback();
-  //       return res.status(400).json({
-  //         success: false,
-  //         message: 'Video file is required'
-  //       });
-  //     }
-
-  //     // Verify category exists
-  //     const category = await CategoryContentSwara.findByPk(category_content_swara_id);
-  //     if (!category) {
-  //       await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
-  //       await transaction.rollback();
-  //       return res.status(404).json({
-  //         success: false,
-  //         message: 'Category not found'
-  //       });
-  //     }
-
-  //     // Verify level exists
-  //     const level = await LevelContentSwara.findByPk(level_content_swara_id);
-  //     if (!level) {
-  //       await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
-  //       await transaction.rollback();
-  //       return res.status(404).json({
-  //         success: false,
-  //         message: 'Level not found'
-  //       });
-  //     }
-
-  //     // Create content with video URL and thumbnail from Cloudinary
-  //     const content = await ContentSwara.create({
-  //       title,
-  //       description,
-  //       category_content_swara_id,
-  //       level_content_swara_id,
-  //       speaker,
-  //       video_duration,
-  //       url_video: req.file.path,
-  //       thumbnail: req.file.path.replace(/\.(mp4|mpeg|mov|avi|webm)$/, '.jpg'),
-  //       views: 0
-  //     }, { transaction });
-
-  //     // Add relationships if provided
-  //     if (gaya_penyampaian_ids) {
-  //       const gayaIds = JSON.parse(gaya_penyampaian_ids);
-  //       await content.setGayaPenyampaian(gayaIds, { transaction });
-  //     }
-
-  //     if (struktur_ids) {
-  //       const strukturIds = JSON.parse(struktur_ids);
-  //       await content.setStruktur(strukturIds, { transaction });
-  //     }
-
-  //     if (teknik_pembuka_ids) {
-  //       const teknikIds = JSON.parse(teknik_pembuka_ids);
-  //       await content.setTeknikPembuka(teknikIds, { transaction });
-  //     }
-
-  //     if (tag_ids) {
-  //       const tagIds = JSON.parse(tag_ids);
-  //       await content.setTags(tagIds, { transaction });
-  //     }
-
-  //     await transaction.commit();
-
-  //     // Fetch complete content with associations
-  //     const completeContent = await ContentSwara.findByPk(content.content_swara_id, {
-  //       include: [
-  //         {
-  //           model: CategoryContentSwara,
-  //           as: 'category',
-  //           attributes: ['category_content_swara_id', 'category_name']
-  //         },
-  //         {
-  //           model: LevelContentSwara,
-  //           as: 'level',
-  //           attributes: ['level_content_swara_id', 'level_name']
-  //         },
-  //         {
-  //           model: GayaPenyampaian,
-  //           as: 'gayaPenyampaian',
-  //           through: { attributes: [] },
-  //           attributes: ['gaya_penyampaian_id', 'gaya_penyampaian']
-  //         },
-  //         {
-  //           model: Struktur,
-  //           as: 'struktur',
-  //           through: { attributes: [] },
-  //           attributes: ['struktur_id', 'struktur']
-  //         },
-  //         {
-  //           model: TeknikPembuka,
-  //           as: 'teknikPembuka',
-  //           through: { attributes: [] },
-  //           attributes: ['teknik_pembuka_id', 'teknik_pembuka']
-  //         },
-  //         {
-  //           model: Tag,
-  //           as: 'tags',
-  //           through: { attributes: [] },
-  //           attributes: ['tag_id', 'tag_name']
-  //         }
-  //       ]
-  //     });
-
-  //     res.status(201).json({
-  //       success: true,
-  //       message: 'Content created successfully',
-  //       data: completeContent
-  //     });
-  //   } catch (error) {
-  //     await transaction.rollback();
-
-  //     // Delete uploaded video from Cloudinary if transaction fails
-  //     if (req.file) {
-  //       try {
-  //         await cloudinary.uploader.destroy(req.file.filename, { resource_type: 'video' });
-  //       } catch (deleteError) {
-  //         console.error('Failed to delete video from Cloudinary:', deleteError);
-  //       }
-  //     }
-
-  //     res.status(500).json({
-  //       success: false,
-  //       message: 'Failed to create content',
-  //       error: error.message
-  //     });
-  //   }
-  // }
-
   static async createContent(req, res) {
     const transaction = await sequelize.transaction();
 
@@ -287,11 +126,14 @@ class InspiraController {
         distinct: true
       });
 
+      const getCategory = await CategoryContentSwara.findAll();
+
       res.json({
         success: true,
         message: 'Content retrieved successfully',
         data: {
           contents,
+          categories: getCategory,
           pagination: {
             total: count,
             page: parseInt(page),
@@ -532,28 +374,67 @@ class InspiraController {
     const transaction = await sequelize.transaction();
 
     try {
-      if (!req.user || !req.user.user_id) {
-        return res.status(401).json({
-          success: false,
-          message: "Unauthorized: Please login first"
-        });
-      }
-
       const { id } = req.params;
 
-      const content = await ContentSwara.findByPk(id);
+      const {
+        title, thumbnail, url_video, description,
+        category_content_swara_id, level_content_swara_id,
+        speaker, video_duration,
+        transkrip,
+        gaya_penyampaian, struktur, teknik_pembuka
+      } = req.body;
+
+      // 1) Find content
+      const content = await ContentSwara.findByPk(id, { transaction });
+
       if (!content) {
         await transaction.rollback();
-        return res.status(404).json({
-          success: false,
-          message: "Content not found"
-        });
+        return res.status(404).json({ success: false, message: "Content not found" });
       }
 
-      await content.update(req.body, { transaction });
+      // 2) Update main content
+      await content.update({
+        title, thumbnail, url_video, description,
+        category_content_swara_id, level_content_swara_id,
+        speaker, video_duration
+      }, { transaction });
+
+      // 3) Update transkrip (hapus lama → insert baru)
+      if (Array.isArray(transkrip)) {
+        await Transkrip.destroy({
+          where: { content_swara_id: id },
+          transaction
+        });
+
+        for (const t of transkrip) {
+          await Transkrip.create({
+            waktu: t.waktu,
+            transkrip: t.transkrip,
+            content_swara_id: id
+          }, { transaction });
+        }
+      }
+
+      // Helper convert string -> array
+      const toArray = v => Array.isArray(v) ? v : (v || "").split(",").map(x => x.trim());
+
+      const gayaArr = toArray(gaya_penyampaian);
+      const strukturArr = toArray(struktur);
+      const teknikArr = toArray(teknik_pembuka);
+
+      // 4) Get IDs
+      const gayaIDs = await getOrCreateList(GayaPenyampaian, "gaya_penyampaian", gayaArr, transaction);
+      const strukturIDs = await getOrCreateList(Struktur, "struktur", strukturArr, transaction);
+      const teknikIDs = await getOrCreateList(TeknikPembuka, "teknik_pembuka", teknikArr, transaction);
+
+      // 5) Sync many-to-many
+      await content.setGayaPenyampaian(gayaIDs, { transaction });
+      await content.setStruktur(strukturIDs, { transaction });
+      await content.setTeknikPembuka(teknikIDs, { transaction });
+
       await transaction.commit();
 
-      return res.json({
+      res.json({
         success: true,
         message: "Content updated successfully",
         data: content
@@ -568,6 +449,7 @@ class InspiraController {
       });
     }
   }
+
 }
 
 module.exports = InspiraController;

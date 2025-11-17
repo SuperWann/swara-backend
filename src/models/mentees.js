@@ -33,6 +33,17 @@ module.exports = (sequelize, DataTypes) => {
             validate: {
                 notEmpty: { msg: 'Minute count is required' },
             }
+        },
+        token_count: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            validate: {
+                notEmpty: { msg: 'Token is required' },
+            }
+        },
+        last_token_reset: {
+            type: DataTypes.DATE,
+            allowNull: true,
         }
     }, {
         tableName: 'mentees',
