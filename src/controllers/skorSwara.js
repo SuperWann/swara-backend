@@ -227,7 +227,7 @@ class SkorSwaraController {
         image_id: finalImageId,
         custom_topic: finalCustomTopic,
       });
-      
+
       const skorSwara = await SkorSwara.create(
         {
           user_id: userId,
@@ -282,6 +282,7 @@ class SkorSwaraController {
         responseData.image = {
           image_id: topicData.image_id,
           image_url: imageUrl,
+          image_topic: topicData.topic,
           image_keyword: topicData.keyword,
         };
       }
