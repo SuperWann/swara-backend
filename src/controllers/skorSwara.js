@@ -227,6 +227,7 @@ class SkorSwaraController {
         image_id: finalImageId,
         custom_topic: finalCustomTopic,
       });
+      
       const skorSwara = await SkorSwara.create(
         {
           user_id: userId,
@@ -492,45 +493,60 @@ class SkorSwaraController {
 
       const audioResult = await checkAudioResult(audio.task_id);
 
-      // let tempo;
-      // let artikulasi;
-      // let jeda;
-      // let first_impression;
-      // let ekspresi;
-      // let gestur;
-      // let kata_pengisi;
-      // let kata_tidak_senonoh;
+      let tempo = 0;
+      let artikulasi = 0;
+      let kontak_mata = 0;
+      let kesesuaian_topik = 0;
+      let struktur = 0;
+      
+      let jeda = 0;
+      let first_impression = 0;
+      let ekspresi = 0;
+      let gestur = 0;
+      let kata_pengisi = 0;
+      let kata_tidak_senonoh = 0;
 
       // PENILAIAN LEVEL 1 
-      const tempo = audioResult.result.tempo.score;
-      const artikulasi = audioResult.result.articulation.score;
+      if (level === 1) {
 
-      const jeda = audioResult.result.tempo.has_long_pause ? 0 : 1;
-      const first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : 0;
-      const ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 1 : 0;
-      const gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
-        !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
-        ? 1 : 0;
-      const kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -0.25 : 1;
-      const kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
+        tempo = audioResult.result.tempo.score;
+        artikulasi = audioResult.result.articulation.score;
 
-      // PENILAIAN LEVEL 2
-      // const kontak_mata = ;
+        jeda = audioResult.result.tempo.has_long_pause ? 0 : 1;
+        first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : 0;
+        ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 1 : 0;
+        gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
+          !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
+          ? 1 : 0;
+        kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -0.25 : 1;
+        kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
 
-      // PENILAIAN LEVEL 3
-      // const kesesuaian_topik = ;
+      } else if (level === 2) {
 
-      // PENILAIAN LEVEL 4
+        kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time 
+
+        jeda = audioResult.result.tempo.has_long_pause ? -1 : 1;
+        first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -1;
+        ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 1 : 0;
+        gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
+          !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
+          ? 1 : -1;
+        kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -0.5 : 1;
+        kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
+
+      } else if (level === 3) {
 
 
-      // PENILAIAN LEVEL 5
 
-
+      }
 
       // Hitung total point earned
       const pointEarned =
         tempo +
         artikulasi +
+        kontak_mata +
+        kesesuaian_topik +
+        struktur +
         jeda +
         first_impression +
         ekspresi +
@@ -543,14 +559,17 @@ class SkorSwaraController {
       await SkorSwara.update(
         {
           point_earned: pointEarned,
-          tempo: tempo,
-          artikulasi: artikulasi,
-          jeda: jeda,
-          first_impression: first_impression,
-          ekspresi: ekspresi,
-          gestur: gestur,
-          kata_pengisi: kata_pengisi,
-          kata_tidak_senonoh: kata_tidak_senonoh
+          tempo,
+          artikulasi,
+          kontak_mata,
+          kesesuaian_topik,
+          struktur,
+          jeda,
+          first_impression,
+          ekspresi,
+          gestur, 
+          kata_pengisi, 
+          kata_tidak_senonoh,
         },
         {
           where: { skor_swara_id: skor_swara_id }
@@ -558,6 +577,14 @@ class SkorSwaraController {
       );
 
       const updatedData = await SkorSwara.findByPk(skor_swara_id);
+
+      await Mentee.update({
+        point: sequelize.literal(`point + ${pointEarned}`),
+      }, {
+        where: { mentee_id: updatedData.user_id },
+        transaction: true
+      }
+      );
 
       res.json({
         success: true,
