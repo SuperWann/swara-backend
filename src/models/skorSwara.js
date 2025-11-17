@@ -107,14 +107,24 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 0,
       },
-      script: {
-        type: DataTypes.TEXT,
+      created_at: {
+        type: DataTypes.DATE,
         allowNull: true,
+        defaultValue: DataTypes.NOW,
+        field: 'created_at', // Mapping ke kolom database
+      },
+      updated_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        defaultValue: DataTypes.NOW,
+        field: 'updated_at', // Mapping ke kolom database
       },
     },
     {
       tableName: "skor_swara",
-      timestamps: false,
+      timestamps: true,
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
     }
   );
 
