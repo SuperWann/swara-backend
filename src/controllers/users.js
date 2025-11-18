@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { User, Role, Gender, Mentee, Badge } = require('../models');
+const { User, Role, Gender, Mentee, Badge, School } = require('../models');
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -28,9 +28,38 @@ async function resetDailyTokens(mentee) {
 class UserController {
   static async register(req, res) {
     try {
-      const { full_name, email, password, phone_number } = req.body;
+      const { full_name, email, password, phone_number, school_token } = req.body;
 
-      // Check if email already exists
+      let schoolId = null;
+      let schoolName = null;
+
+      if (school_token) {
+        const school = await School.findOne({
+          where: { 
+            access_token: school_token,
+            is_active: true 
+          }
+        });
+
+        if (!school) {
+          return res.status(404).json({
+            success: false,
+            message: 'Invalid or inactive school token'
+          });
+        }
+
+        const now = new Date();
+        if (school.subscription_end && new Date(school.subscription_end) < now) {
+          return res.status(403).json({
+            success: false,
+            message: 'School subscription has expired'
+          });
+        }
+
+        schoolId = school.school_id;
+        schoolName = school.school_name;
+      }
+
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
         return res.status(400).json({
@@ -39,7 +68,6 @@ class UserController {
         });
       }
 
-      // Get default role (user)
       let role = await Role.findOne({ where: { role_name: 'user' } });
       if (!role) {
         role = await Role.create({ role_name: 'user' });
@@ -51,7 +79,8 @@ class UserController {
         email,
         password,
         phone_number,
-        role_id: role.role_id
+        role_id: role.role_id,
+        school_id: schoolId
       });
 
       // Create mentee
@@ -80,10 +109,12 @@ class UserController {
 
       res.status(201).json({
         success: true,
-        message: 'Registration successful',
+        message: schoolId ? 'Registration successful with school' : 'Registration successful',
         data: {
           user: userWithRelations,
           mentee: mentee,
+          school_id: schoolId,
+          school_name: schoolName
         }
       });
     } catch (error) {
@@ -162,7 +193,7 @@ class UserController {
   // }
   static async login(req, res) {
     try {
-      const { email, password } = req.body;
+      const { email, password, school_token } = req.body;
 
       // Validasi input
       if (!email || !password) {
@@ -170,6 +201,30 @@ class UserController {
           success: false,
           message: 'Email and password are required'
         });
+      }
+
+      if (school_token) {
+        const school = await School.findOne({
+          where: { 
+            access_token: school_token,
+            is_active: true 
+          }
+        });
+
+        if (!school) {
+          return res.status(404).json({
+            success: false,
+            message: 'Invalid or inactive school token'
+          });
+        }
+
+        const now = new Date();
+        if (school.subscription_end && new Date(school.subscription_end) < now) {
+          return res.status(403).json({
+            success: false,
+            message: 'School subscription has expired'
+          });
+        }
       }
 
       // Cari user dengan Sequelize
@@ -181,7 +236,17 @@ class UserController {
             as: 'mentee',
             attributes: ['mentee_id', 'point', 'exercise_count', 'minute_count', 'token_count', 'last_token_reset']
           },
-          { model: Role, as: 'role', attributes: ['role_id', 'role_name'] },
+          {
+            model: Role,
+            as: 'role',
+            attributes: ['role_id', 'role_name']
+          },
+          {
+            model: School,
+            as: 'school',
+            attributes: ['school_id', 'school_name', 'access_token'],
+            required: false
+          }
         ]
       });
 
@@ -190,6 +255,19 @@ class UserController {
           success: false,
           message: 'Invalid email or password'
         });
+      }
+
+      if (school_token && user.school_id) {
+        const school = await School.findOne({
+          where: { access_token: school_token }
+        });
+        
+        if (school && user.school_id !== school.school_id) {
+          return res.status(401).json({
+            success: false,
+            message: 'You are not registered with this school'
+          });
+        }
       }
 
       const mentee = user.mentee[0];
@@ -229,6 +307,10 @@ class UserController {
             user_id: user.user_id,
             email: user.email,
             full_name: user.full_name,
+            role_id: user.role_id,
+            role: user.role,
+            school_id: user.school_id,
+            school: user.school,
             mentee: user.mentee,
           },
           role: user.role.role_name,
