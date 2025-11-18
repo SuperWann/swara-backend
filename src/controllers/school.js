@@ -1,8 +1,9 @@
-const { School, SchoolPackage, SchoolPayment, User, Role } = require('../models');
+const { School, SchoolPackage, SchoolPayment, User, Role, Mentee, MentorProfile } = require('../models');
 const midtransService = require('../services/midtransService');
 const emailService = require('../services/emailService');
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
+const { Op } = require('sequelize');
 
 exports.getSchoolPackages = async (req, res) => {
   try {
@@ -314,6 +315,165 @@ exports.handlePaymentNotification = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to process payment notification',
+      error: error.message
+    });
+  }
+};
+
+exports.addMentor = async (req, res) => {
+  try {
+    const {
+      full_name,
+      email,
+      phone_number,
+      password
+    } = req.body;
+
+    const adminUser = req.user;
+    
+    if (!adminUser.school_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not associated with any school'
+      });
+    }
+
+    const school = await School.findByPk(adminUser.school_id, {
+      include: [{ model: SchoolPackage, as: 'package' }]
+    });
+
+    if (!school) {
+      return res.status(404).json({
+        success: false,
+        message: 'School not found'
+      });
+    }
+
+    if (!school.is_active) {
+      return res.status(403).json({
+        success: false,
+        message: 'School is not active'
+      });
+    }
+
+    const now = new Date();
+    if (school.subscription_end && new Date(school.subscription_end) < now) {
+      return res.status(403).json({
+        success: false,
+        message: 'School subscription has expired'
+      });
+    }
+
+    const currentMentorCount = await User.count({
+      include: [{
+        model: Role,
+        as: 'role',
+        where: { role_name: 'mentor' }
+      }],
+      where: { school_id: school.school_id }
+    });
+
+    if (currentMentorCount >= school.mentor_count) {
+      return res.status(400).json({
+        success: false,
+        message: `Mentor limit reached. Maximum ${school.mentor_count} mentors allowed for ${school.package.package_name}`
+      });
+    }
+
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already registered'
+      });
+    }
+
+    let mentorRole = await Role.findOne({ where: { role_name: 'mentor' } });
+    if (!mentorRole) {
+      mentorRole = await Role.create({ role_name: 'mentor' });
+    }
+
+    const mentor = await User.create({
+      full_name,
+      email,
+      password: password || 'Mentor123!',
+      phone_number,
+      role_id: mentorRole.role_id,
+      school_id: school.school_id,
+      status: 'aktif'
+    });
+
+    try {
+      await MentorProfile.create({
+        user_id: mentor.user_id,
+      });
+    } catch (error) {
+      console.log('MentorProfile creation skipped:', error.message);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Mentor added successfully',
+      data: {
+        mentor_id: mentor.user_id,
+        full_name: mentor.full_name,
+        email: mentor.email,
+        phone_number: mentor.phone_number,
+        school_name: school.school_name,
+        current_mentor_count: currentMentorCount + 1,
+        max_mentor_count: school.mentor_count
+      }
+    });
+  } catch (error) {
+    console.error('Error adding mentor:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add mentor',
+      error: error.message
+    });
+  }
+};
+
+exports.getSchoolMentors = async (req, res) => {
+  try {
+    const adminUser = req.user;
+
+    if (!adminUser.school_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not associated with any school'
+      });
+    }
+
+    const mentors = await User.findAll({
+      where: { school_id: adminUser.school_id },
+      include: [
+        {
+          model: Role,
+          as: 'role',
+          where: { role_name: 'mentor' }
+        },
+        {
+          model: MentorProfile,
+          as: 'mentorProfile',
+          required: false
+        }
+      ],
+      attributes: ['user_id', 'full_name', 'email', 'phone_number', 'status', 'created_at']
+    });
+
+    res.json({
+      success: true,
+      data: {
+        mentors,
+        total: mentors.length
+      }
+    });
+  } catch (error) {
+    console.error('Error getting mentors:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get mentors',
       error: error.message
     });
   }

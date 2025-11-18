@@ -1,8 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const schoolController = require('../controllers/school');
-const { authenticateToken } = require('../middleware/auth');
-const { validateSchoolRegistration, validateTokenVerification } = require('../validators/school.validator');
+const { authenticateToken, checkRole } = require('../middleware/auth');
+const { 
+  validateSchoolRegistration, 
+  validateAddMentor
+} = require('../validators/school.validator');
 
 // Get all available school packages
 router.get('/packages', schoolController.getSchoolPackages);
@@ -12,5 +15,11 @@ router.post('/register', validateSchoolRegistration, schoolController.registerSc
 
 // Handle Midtrans payment notification
 router.post('/payment/notification', schoolController.handlePaymentNotification);
+
+// Add mentor/teacher to school
+router.post('/mentors', authenticateToken, validateAddMentor, schoolController.addMentor);
+
+// Get all mentors in school (for school admin)
+router.get('/mentors', authenticateToken, schoolController.getSchoolMentors);
 
 module.exports = router;
