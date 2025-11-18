@@ -105,6 +105,8 @@ router.delete('/topics/:id', SkorSwaraController.deleteTopic);
 // Update topic
 router.put('/topics/:id', updateTopicValidation, validate, SkorSwaraController.updateTopic);
 
+// Get all available topics By Level
+router.get('/topicsbylevel', SkorSwaraController.getAllTopicsByLevel);
 
 
 // Get all image topics

@@ -6,6 +6,7 @@ const path = require("path");
 const axios = require('axios');
 const FormData = require("form-data");
 const fs = require("fs");
+const { Op } = require("sequelize");
 const cloudinary = require('cloudinary').v2;
 
 class SkorSwaraController {
@@ -138,8 +139,34 @@ class SkorSwaraController {
       // HANDLE MODE TYPE: IMAGE
       else if (mode.mode_type === 'image') {
         console.log('=== Fetching all images');
+
+        let level = 1;
+
+        const user = await User.findByPk(userId, {
+          include: [
+            {
+              model: Mentee,
+              as: 'mentee',
+              attributes: ['mentee_id', 'point', 'exercise_count', 'minute_count', 'token_count', 'last_token_reset']
+            }
+          ]
+        });
+
+        const point = user.mentee[0]?.point || 0;
+
+        if (point <= 200) level = 1;
+        else if (point <= 500) level = 2;
+        else if (point <= 900) level = 3;
+        else if (point <= 1800) level = 4;
+        else if (point <= 6500) level = 5;
+
         const allImages = await SkorSwaraImage.findAll({
-          where: { is_active: true },
+          where: {
+            is_active: true,
+            level: {
+              [Op.lte]: level
+            }
+          },
           transaction,
           logging: console.log, // LOG SQL QUERY
         });
@@ -1113,6 +1140,53 @@ class SkorSwaraController {
         message: "Topics retrieved successfully",
         data: topics,
         total_topics: count,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to get topics",
+        error: error.message,
+      });
+    }
+  }
+
+  static async getAllTopicsByLevel(req, res) {
+    try {
+      const userId = req.user.user_id;
+      let level = 1;
+
+      const user = await User.findByPk(userId, {
+        include: [
+          {
+            model: Mentee,
+            as: 'mentee',
+            attributes: ['mentee_id', 'point', 'exercise_count', 'minute_count', 'token_count', 'last_token_reset']
+          }
+        ]
+      });
+
+      const point = user.mentee[0]?.point || 0;
+
+      if (point <= 200) level = 1;
+      else if (point <= 500) level = 2;
+      else if (point <= 900) level = 3;
+      else if (point <= 1800) level = 4;
+      else if (point <= 6500) level = 5;
+
+      const topics = await SkorSwaraTopic.findAll({
+        attributes: ["skor_swara_topic_id", "topic", "text"],
+        order: [["skor_swara_topic_id", "ASC"]],
+        where: {
+          level: {
+            [Op.lte]: level
+          }
+        }
+      });
+
+      res.json({
+        success: true,
+        message: "Topics retrieved successfully",
+        data: topics,
       });
     } catch (error) {
       res.status(500).json({
