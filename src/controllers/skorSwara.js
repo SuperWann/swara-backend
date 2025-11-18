@@ -312,6 +312,8 @@ class SkorSwaraController {
 
   static async submitHasil(req, res) {
     let extracted = null;
+    let tempVideoPath = null;
+    let tempAudioPath = null;
 
     try {
       const userId = req.user.user_id;
@@ -384,12 +386,27 @@ class SkorSwaraController {
 
       const point = user.mentee[0]?.point || 0;
 
-      if (point <= 100) level = 1;
-      else if (point <= 200) level = 2;
-      else level = 3;
+      if (point <= 200) level = 1;
+      else if (point <= 500) level = 2;
+      else if (point <= 900) level = 3;
+      else if (point <= 1800) level = 4;
+      else if (point <= 6500) level = 5;
+
+      console.log("level latihan:", level);
 
       // 4️⃣ Extract audio
       extracted = await AudioExtractor.extractFromCloudinary(videoUrl);
+
+      tempVideoPath = extracted.videoPath;
+      tempAudioPath = extracted.audioPath;
+
+      console.log("✅ Audio berhasil diekstrak");
+      console.log("📁 Video path:", tempVideoPath);
+      console.log("📁 Audio path:", tempAudioPath);
+
+      if (!fs.existsSync(tempAudioPath)) {
+        throw new Error("File audio tidak ditemukan");
+      }
 
       // 5️⃣ Download video untuk dikirim ke API eksternal
       const videoResponse = await axios.get(videoUrl, { responseType: "stream" });
@@ -435,7 +452,7 @@ class SkorSwaraController {
       //======================================== AUDIO ANALYSIS ===============================================================
 
       const audioData = new FormData();
-      audioData.append("audio", fs.createReadStream(extracted.audioPath), {
+      audioData.append("audio", fs.createReadStream(tempAudioPath), {
         filename: "extracted_audio.wav",
         contentType: "audio/wav",
       });
@@ -499,7 +516,7 @@ class SkorSwaraController {
       let kontak_mata = 0;
       let kesesuaian_topik = 0;
       let struktur = 0;
-      
+
       let jeda = 0;
       let first_impression = 0;
       let ekspresi = 0;
@@ -524,7 +541,17 @@ class SkorSwaraController {
 
       } else if (level === 2) {
 
-        kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time 
+        tempo = audioResult.result.tempo.score;
+        artikulasi = audioResult.result.articulation.score;
+        kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 &&
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8 ? 4 :
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 &&
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10 ? 3 :
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 &&
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12 ? 2 :
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12 ? 1 : 0;
 
         jeda = audioResult.result.tempo.has_long_pause ? -1 : 1;
         first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -1;
@@ -537,7 +564,76 @@ class SkorSwaraController {
 
       } else if (level === 3) {
 
+        tempo = audioResult.result.tempo.score;
+        artikulasi = audioResult.result.articulation.score;
+        kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 &&
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8 ? 4 :
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 &&
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10 ? 3 :
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 &&
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12 ? 2 :
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12 ? 1 : 0;
+        kesesuaian_topik = audioResult.result.keywords.score;
 
+        jeda = audioResult.result.tempo.has_long_pause ? -2 : 1;
+        first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -2;
+        ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 2 : -1;
+        gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
+          !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
+          ? 0 : -2;
+        kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -1 : 1;
+        kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
+
+      } else if (level === 4) {
+
+        tempo = audioResult.result.tempo.score;
+        artikulasi = audioResult.result.articulation.score;
+        kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 &&
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8 ? 4 :
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 &&
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10 ? 3 :
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 &&
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12 ? 2 :
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12 ? 1 : 0;
+        kesesuaian_topik = audioResult.result.keywords.score;
+
+        jeda = audioResult.result.tempo.has_long_pause ? -2 : 1;
+        first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -3;
+        ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 2 : -2;
+        gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
+          !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
+          ? 0 : -2;
+        kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -1.5 : 1;
+        kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
+
+      } else {
+
+        tempo = audioResult.result.tempo.score;
+        artikulasi = audioResult.result.articulation.score;
+        kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 &&
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8 ? 4 :
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 &&
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10 ? 3 :
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 &&
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12 ? 2 :
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12 ? 1 : 0;
+        kesesuaian_topik = audioResult.result.keywords.score;
+        struktur = audioResult.result.structure.score;
+
+        jeda = audioResult.result.tempo.has_long_pause ? -5 : 3;
+        first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -5;
+        ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 5 : -5;
+        gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
+          !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
+          ? 0 : -5;
+        kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -2 : 1;
+        kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
 
       }
 
@@ -568,8 +664,8 @@ class SkorSwaraController {
           jeda,
           first_impression,
           ekspresi,
-          gestur, 
-          kata_pengisi, 
+          gestur,
+          kata_pengisi,
           kata_tidak_senonoh,
         },
         {
@@ -583,7 +679,7 @@ class SkorSwaraController {
         point: sequelize.literal(`point + ${pointEarned}`),
       }, {
         where: { mentee_id: updatedData.user_id },
-        transaction: true
+        // transaction: true
       }
       );
 
@@ -593,14 +689,6 @@ class SkorSwaraController {
         data: updatedData,
       });
 
-
-
-      // res.json({
-      //   success: true,
-      //   message: "Video and audio processed",
-      //   data: { videoResult, audioResult, level, videoUrl }
-      // });
-
     } catch (error) {
       console.error(error);
       res.status(500).json({
@@ -608,168 +696,32 @@ class SkorSwaraController {
         message: "Failed to analyze video and audio",
         error: error.message,
       });
+    } finally {
+      console.log("🗑️ Cleaning up temporary files...");
+
+      if (tempAudioPath) {
+        try {
+          if (fs.existsSync(tempAudioPath)) {
+            fs.unlinkSync(tempAudioPath);
+            console.log("✅ Audio file deleted");
+          }
+        } catch (err) {
+          console.error("⚠️ Failed to delete audio:", err.message);
+        }
+      }
+
+      if (tempVideoPath) {
+        try {
+          if (fs.existsSync(tempVideoPath)) {
+            fs.unlinkSync(tempVideoPath);
+            console.log("✅ Video file deleted");
+          }
+        } catch (err) {
+          console.error("⚠️ Failed to delete video:", err.message);
+        }
+      }
     }
   }
-
-  // static async submitHasil(req, res) {
-  //   let extracted = null;
-
-  //   try {
-  //     const userId = req.user.user_id;
-  //     const { image_id, mode_id, custom_topic, custom_keyword, skor_swara_topic_id } = req.body;
-  //     let level = 1;
-
-  //     // Pastikan file ada
-  //     if (!req.file) {
-  //       return res.status(400).json({
-  //         success: false,
-  //         message: "Video file is required",
-  //       });
-  //     }
-
-  //     // 1️⃣ Upload video ke Cloudinary
-  //     const uploadToCloudinary = await cloudinary.uploader.upload(req.file.path, {
-  //       resource_type: "video",
-  //       folder: "swara-videos"
-  //     });
-
-  //     const videoUrl = uploadToCloudinary.secure_url;
-  //     console.log("📤 Video uploaded:", videoUrl);
-
-  //     // 2️⃣ Ambil user + mentee
-  //     const user = await User.findByPk(userId, {
-  //       include: [
-  //         {
-  //           model: Mentee,
-  //           as: 'mentee',
-  //           attributes: ['mentee_id', 'point', 'exercise_count', 'minute_count', 'token_count', 'last_token_reset']
-  //         }
-  //       ]
-  //     });
-
-  //     const point = user.mentee[0]?.point || 0;
-
-  //     if (point <= 100) level = 1;
-  //     else if (point <= 200) level = 2;
-  //     else level = 3;
-
-  //     // 4️⃣ Extract audio
-  //     extracted = await AudioExtractor.extractFromCloudinary(videoUrl);
-
-  //     // 5️⃣ Download video untuk dikirim ke API eksternal
-  //     const videoResponse = await axios.get(videoUrl, { responseType: "stream" });
-
-  //     const videoData = new FormData();
-  //     videoData.append("video", videoResponse.data, {
-  //       filename: "video.mp4",
-  //       contentType: "video/mp4",
-  //     });
-  //     videoData.append("level", level);
-  //     videoData.append("user_id", userId);
-
-  //     const uploadVideoResponse = await axios.post(
-  //       "https://cyberlace-swara-api.hf.space/api/v1/analyze",
-  //       videoData,
-  //       {
-  //         headers: { ...videoData.getHeaders() },
-  //       }
-  //     );
-
-  //     const { task_id } = uploadVideoResponse.data;
-
-  //     // 🔁 POLLING RESULT VIDEO
-  //     const checkResult = async (taskId, maxAttempts = 100, delayMs = 2000) => {
-  //       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-  //         const response = await axios.get(
-  //           `https://cyberlace-swara-api.hf.space/api/v1/task/${taskId}`
-  //         );
-
-  //         if (response.data.result !== null) return response.data;
-
-  //         if (response.data.status === "failed") {
-  //           throw new Error(`Analysis failed: ${response.data.error}`);
-  //         }
-
-  //         await new Promise((r) => setTimeout(r, delayMs));
-  //       }
-
-  //       throw new Error("Timeout waiting for result");
-  //     };
-
-  //     const videoResult = await checkResult(task_id);
-
-  //     //====================================================================================================
-
-  //     const audioData = new FormData();
-  //     audioData.append("audio", fs.createReadStream(extracted.audioPath), {
-  //       filename: "extracted_audio.wav",
-  //       contentType: "audio/wav",
-  //     });
-
-  //     // Ambil topik jika ada
-  //     if (skor_swara_topic_id) {
-  //       const topicData = await SkorSwaraTopic.findByPk(skor_swara_topic_id);
-  //       if (!topicData) {
-  //         return res.status(404).json({
-  //           success: false,
-  //           message: "Topic not found",
-  //         });
-  //       }
-
-  //       const textTopic = topicData.text;
-  //       audioData.append("reference_text", textTopic);
-  //     }
-
-  //     // Ambil kunci jika ada
-  //     if (custom_keyword && custom_topic) {
-  //       audioData.append("custom_topic", custom_topic);
-  //     }
-
-  //     const uploadAudioResponse = await axios.post(
-  //       "https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/analyze",
-  //       audioData,
-  //       {
-  //         headers: { ...audioData.getHeaders() },
-  //       }
-  //     );
-
-  //     const audio = uploadAudioResponse.data;
-
-  //     const checkAudioResult = async (taskId, maxAttempts = 30, delayMs = 2000) => {
-  //       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-  //         const response = await axios.get(
-  //           `https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/status/${taskId}`
-  //         );
-
-  //         if (response.data.result !== null) return response.data;
-
-  //         if (response.data.status === "failed") {
-  //           throw new Error(`Audio analysis failed: ${response.data.error}`);
-  //         }
-
-  //         await new Promise((r) => setTimeout(r, delayMs));
-  //       }
-
-  //       throw new Error("Timeout waiting for audio result");
-  //     };
-
-  //     const audioResult = await checkAudioResult(audio.task_id);
-
-  //     res.json({
-  //       success: true,
-  //       message: "Video and audio processed",
-  //       data: { videoResult, audioResult, level, videoUrl }
-  //     });
-
-  //   } catch (error) {
-  //     console.error(error);
-  //     res.status(500).json({
-  //       success: false,
-  //       message: "Failed to analyze video and audio",
-  //       error: error.message,
-  //     });
-  //   }
-  // }
 
   static async uploadAndAnalyze(req, res) {
     let videoPath = null;

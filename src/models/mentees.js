@@ -14,7 +14,7 @@ module.exports = (sequelize, DataTypes) => {
             }
         },
         point: {
-            type: DataTypes.INTEGER,
+            type: DataTypes.FLOAT,
             allowNull: true,
             validate: {
                 notEmpty: { msg: 'Point is required' },
