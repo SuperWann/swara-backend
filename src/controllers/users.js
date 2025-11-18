@@ -180,7 +180,8 @@ class UserController {
             model: Mentee,
             as: 'mentee',
             attributes: ['mentee_id', 'point', 'exercise_count', 'minute_count', 'token_count', 'last_token_reset']
-          }
+          },
+          { model: Role, as: 'role', attributes: ['role_id', 'role_name'] },
         ]
       });
 
@@ -230,6 +231,7 @@ class UserController {
             full_name: user.full_name,
             mentee: user.mentee,
           },
+          role: user.role.role_name,
           accessToken,
         }
       });
