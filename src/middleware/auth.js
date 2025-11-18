@@ -106,13 +106,13 @@ const authenticateToken = async (req, res, next) => {
         });
       }
 
-      // Attach complete user object with role
       req.user = {
         user_id: user.user_id,
         email: user.email,
         full_name: user.full_name,
         role_id: user.role_id,
-        role: user.role
+        role: user.role,
+        school_id: user.school_id
       };
       
       next();

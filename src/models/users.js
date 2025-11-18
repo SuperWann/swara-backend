@@ -90,6 +90,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('aktif', 'nonaktif'),
       allowNull: false,
       defaultValue: 'aktif'
+    },
+    school_id: {
+      type: DataTypes.BIGINT,
+      allowNull: true,
+      references: {
+        model: 'schools',
+        key: 'school_id'
+      }
     }
   }, {
     tableName: 'users',
@@ -156,6 +164,10 @@ module.exports = (sequelize, DataTypes) => {
     User.hasMany(models.MentorActivity, {
       foreignKey: 'user_id',
       as: 'mentorActivities'
+    });
+    User.belongsTo(models.School, {
+      foreignKey: 'school_id',
+      as: 'school'
     });
   };
 

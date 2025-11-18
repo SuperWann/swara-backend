@@ -47,7 +47,10 @@ const addTopicValidation = [
     .notEmpty().withMessage('Text is required')
     .isString().withMessage('Text must be a string')
     .trim()
-    .isLength({ min: 10 }).withMessage('Text must be at least 10 characters')
+    .isLength({ min: 10 }).withMessage('Text must be at least 10 characters'),
+  body('level')
+    .notEmpty().withMessage('Level is required')
+    .isIn([1, 2, 3, 4, 5]).withMessage('Level must be one of: 1, 2, 3, 4, 5')
 ];
 
 const updateTopicValidation = [
@@ -103,6 +106,9 @@ router.delete('/topics/:id', SkorSwaraController.deleteTopic);
 router.put('/topics/:id', updateTopicValidation, validate, SkorSwaraController.updateTopic);
 
 
+
+// Get all image topics
+router.get('/image-topics', SkorSwaraController.getAllImageTopics);
 
 // Create image topic
 router.post('/image-topics', uploadImage.single('image'), SkorSwaraController.createImageTopic);

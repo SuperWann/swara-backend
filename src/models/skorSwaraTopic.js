@@ -21,6 +21,17 @@ module.exports = (sequelize, DataTypes) => {
           notEmpty: { msg: "Text is required" },
         },
       },
+      level: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        validate: {
+          notEmpty: { msg: "Level is required" },
+          isIn: {
+            args: [[1, 2, 3, 4, 5]],
+            msg: "Level must be 1, 2, 3, 4, or 5",
+          },
+        },
+      }
     },
     {
       tableName: "skor_swara_topics",

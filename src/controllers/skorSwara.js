@@ -677,7 +677,6 @@ class SkorSwaraController {
         point: sequelize.literal(`point + ${pointEarned}`),
       }, {
         where: { mentee_id: updatedData.user_id },
-        // transaction: true
       }
       );
 
@@ -1128,7 +1127,7 @@ class SkorSwaraController {
     const transaction = await sequelize.transaction();
 
     try {
-      const { topic, text } = req.body;
+      const { topic, text, level } = req.body;
 
       const existingTopic = await SkorSwaraTopic.findOne({
         where: { topic },
@@ -1147,6 +1146,7 @@ class SkorSwaraController {
         {
           topic: topic.trim(),
           text: text.trim(),
+          level: level,
         },
         { transaction }
       );
@@ -1160,6 +1160,7 @@ class SkorSwaraController {
           skor_swara_topic_id: newTopic.skor_swara_topic_id,
           topic: newTopic.topic,
           text: newTopic.text,
+          level: newTopic.level,
         },
       });
     } catch (error) {
@@ -1211,7 +1212,7 @@ class SkorSwaraController {
 
     try {
       const { id } = req.params;
-      const { topic, text } = req.body; // Use req.body.topic and req.body.text
+      const { topic, text, level } = req.body; // Use req.body.topic and req.body.text
 
       const topicToUpdate = await SkorSwaraTopic.findByPk(id, { transaction });
 
@@ -1227,6 +1228,7 @@ class SkorSwaraController {
         {
           topic: topic.trim(),
           text: text.trim(),
+          level: level,
         },
         { transaction }
       );
@@ -1240,6 +1242,7 @@ class SkorSwaraController {
           skor_swara_topic_id: topicToUpdate.skor_swara_topic_id,
           topic: topicToUpdate.topic,
           text: topicToUpdate.text,
+          level: topicToUpdate.level,
         },
       });
     } catch (error) {
@@ -1252,11 +1255,32 @@ class SkorSwaraController {
     }
   }
 
+  static async getAllImageTopics(req, res) {
+    try {
+      const imageTopics = await SkorSwaraImage.findAll({
+        attributes: ["image_id", "image_topic", "image_keyword", "level", "image_url"],
+        order: [["image_id", "ASC"]],
+      });
+
+      res.json({
+        success: true,
+        message: "Image topics retrieved successfully",
+        data: imageTopics,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to get image topics",
+        error: error.message,
+      });
+    }
+  }
+
   static async createImageTopic(req, res) {
     const transaction = await sequelize.transaction();
 
     try {
-      const { image_keyword, image_topic } = req.body;
+      const { image_keyword, image_topic, level } = req.body;
 
       // Validasi: pastikan file image ada
       if (!req.file) {
@@ -1277,6 +1301,7 @@ class SkorSwaraController {
           image_url,
           image_keyword,
           image_topic,
+          level,
         },
         { transaction }
       );
@@ -1290,6 +1315,7 @@ class SkorSwaraController {
           image_id: newImageTopic.image_id,
           image_topic: newImageTopic.image_topic,
           image_keyword: newImageTopic.image_keyword,
+          level: newImageTopic.level,
           image_url: newImageTopic.image_url,
           cloudinary_public_id: req.file.filename, // untuk delete image nanti
         },
@@ -1378,7 +1404,7 @@ class SkorSwaraController {
 
     try {
       const { id } = req.params;
-      const { image_keyword, image_topic } = req.body;
+      const { image_keyword, image_topic, level } = req.body;
 
       const existingImageTopic = await SkorSwaraImage.findByPk(id, { transaction });
 
@@ -1393,6 +1419,7 @@ class SkorSwaraController {
       const updateData = {
         image_keyword: image_keyword || existingImageTopic.image_keyword,
         image_topic: image_topic || existingImageTopic.image_topic,
+        level: level || existingImageTopic.level,
       };
 
       if (req.file) {
