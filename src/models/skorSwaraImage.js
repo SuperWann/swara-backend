@@ -32,6 +32,13 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: true,
       },
+      level: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        validate: {
+          notEmpty: { msg: "Level is required" },
+        }
+      }
     },
     {
       tableName: "skor_swara_images",
