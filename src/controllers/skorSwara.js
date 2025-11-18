@@ -317,7 +317,6 @@ class SkorSwaraController {
 
     try {
       const userId = req.user.user_id;
-      const { script } = req.body;
       const skor_swara_id = await SkorSwara.max('skor_swara_id', { where: { user_id: userId } });
       console.log('=== Submitting results for SkorSwara ID:', skor_swara_id);
       let level = 1;
@@ -458,6 +457,7 @@ class SkorSwaraController {
       });
 
       if (skorSwaraMode.mode_type === 'text') {
+        audioData.append("custom_topic", skorSwaraTopic.topic);
         audioData.append("reference_text", skorSwaraTopic.text);
       } else if (skorSwaraMode.mode_type === 'image') {
         // Check if skorSwaraImage exists before accessing its properties
@@ -467,7 +467,6 @@ class SkorSwaraController {
         const imageKeyword = skorSwaraImage.image_keyword
           ? skorSwaraImage.image_keyword.split(",").map(item => item.trim())
           : [];
-        audioData.append("reference_text", script || "");
         audioData.append("custom_topic", skorSwaraImage.image_topic || "");
         audioData.append("custom_keywords", JSON.stringify(imageKeyword));
       } else if (skorSwaraMode.mode_type === 'custom') {
@@ -476,7 +475,6 @@ class SkorSwaraController {
         const customKeywordList = customKeyword
           ? customKeyword.split(",").map(item => item.trim())
           : [];
-        audioData.append("reference_text", script || "");
         audioData.append("custom_topic", detailSkorSwara.custom_topic || "");
         audioData.append("custom_keywords", JSON.stringify(customKeywordList));
       }
