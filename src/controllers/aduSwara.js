@@ -178,8 +178,7 @@ class AduSwaraController {
     const transaction = await sequelize.transaction();
 
     try {
-      // const { adu_swara_topic_id } = req.body; random ini topicnya
-
+      const userId = req.user.user_id
       const allTopics = await AduSwaraTopic.findAll();
 
       if (allTopics.length === 0) {
@@ -193,22 +192,23 @@ class AduSwaraController {
       const randomTopic = allTopics[Math.floor(Math.random() * allTopics.length)];
       const adu_swara_topic_id = randomTopic.adu_swara_topic_id;
 
-      const allMatches = await Match.findAll({
-        where: { adu_swara_topic_id },
+      const match = await Match.findOne({
         include: [
           {
             model: MatchResult,
             as: "results",
           },
         ],
+        where: Sequelize.where(
+          Sequelize.fn("COUNT", Sequelize.col("results.id")),
+          "<=",
+          1
+        ),
+        group: ["Match.id"],
         transaction,
       });
 
       let isReady = true
-
-      let match = allMatches.find((m) => {
-        return m.results.length === 1 && m.results[0].user_id !== userId;
-      });
 
       if (!match) {
         isReady = false
@@ -235,13 +235,6 @@ class AduSwaraController {
           { transaction }
         );
       }
-
-      const topic = await AduSwaraTopic.findByPk(
-        adu_swara_topic_id,
-        {
-          include: [{ model: AduSwaraCategory, as: "category" }],
-        }, { transaction }
-      );
 
       await transaction.commit();
 
