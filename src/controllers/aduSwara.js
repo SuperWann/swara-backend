@@ -1,4 +1,3 @@
-const { default: axios } = require("axios");
 const {
   AduSwaraCategory,
   AduSwaraTopic,
@@ -193,6 +192,10 @@ class AduSwaraController {
 
       const randomTopic = allTopics[Math.floor(Math.random() * allTopics.length)];
       const adu_swara_topic_id = randomTopic.adu_swara_topic_id;
+
+      let match = allMatches.find((m) => {
+        return m.results.length === 1 && m.results[0].user_id !== userId;
+      });
 
       if (!match) {
         const room = await axios.post(
