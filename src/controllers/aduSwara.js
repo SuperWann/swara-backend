@@ -192,20 +192,19 @@ class AduSwaraController {
       const randomTopic = allTopics[Math.floor(Math.random() * allTopics.length)];
       const adu_swara_topic_id = randomTopic.adu_swara_topic_id;
 
-      const match = await Match.findOne({
+      const allMatches = await Match.findAll({
         include: [
           {
             model: MatchResult,
             as: "results",
           },
         ],
-        where: Sequelize.where(
-          Sequelize.fn("COUNT", Sequelize.col("results.id")),
-          "<=",
-          1
-        ),
-        group: ["Match.id"],
         transaction,
+      });
+
+
+      let match = allMatches.find((m) => {
+        return m.results.length <= 1 && m.results[0].user_id !== userId;
       });
 
       let isReady = true
