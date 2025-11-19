@@ -17,6 +17,10 @@ module.exports = (sequelize, DataTypes) => {
         model: 'adu_swara_topics',
         key: 'adu_swara_topic_id'
       }
+    },
+    meeting_url: {
+      type: DataTypes.TEXT,
+      allowNull: false,
     }
   }, {
     tableName: 'matchs',

@@ -1,3 +1,4 @@
+const { default: axios } = require("axios");
 const {
   AduSwaraCategory,
   AduSwaraTopic,
@@ -10,6 +11,7 @@ const {
   ContentSwara,
   sequelize,
 } = require("../models");
+const { DAILY_KEY } = require("../config/Daily")
 const { Op } = require("sequelize");
 const { cloudinary } = require("../config/cloudinary");
 const AudioExtractor = require('../utils/audioExtractor');
@@ -192,10 +194,30 @@ class AduSwaraController {
       const randomTopic = allTopics[Math.floor(Math.random() * allTopics.length)];
       const adu_swara_topic_id = randomTopic.adu_swara_topic_id;
 
-      const matchs = await Match.create({
-        adu_swara_topic_id: adu_swara_topic_id,
-        created_at: new Date(),
-      }, { transaction });
+      if (!match) {
+        const room = await axios.post(
+          "https://api.daily.co/v1/rooms",
+          {
+            privacy: "public",
+            properties: {
+              enable_screenshare: true,
+              enable_chat: true,
+              max_participants: 2,
+            },
+          },
+          {
+            headers: { Authorization: `Bearer ${DAILY_KEY}` },
+          }
+        );
+        match = await Match.create(
+          {
+            adu_swara_topic_id,
+            created_at: new Date(),
+            meeting_url: room.data.url
+          },
+          { transaction }
+        );
+      }
 
       const topic = await AduSwaraTopic.findByPk(
         adu_swara_topic_id,
@@ -208,8 +230,15 @@ class AduSwaraController {
 
       res.json({
         success: true,
-        message: "Match created successfully",
-        data: { matchs, topic },
+        message: isReady
+          ? "Match ready! Battle can start"
+          : "Waiting for opponent...",
+        data: {
+          match: fullMatch,
+          isReady,
+          countdown: 30,
+          meeting_url: match.meeting_url
+        },
       });
 
     } catch (error) {
