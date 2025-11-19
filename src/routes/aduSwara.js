@@ -3,6 +3,7 @@ const { body, query, param } = require('express-validator');
 const AduSwaraController = require('../controllers/aduSwara');
 const { auth } = require('../middleware/auth');
 const { validate } = require('../middleware/validator');
+const { upload } = require('../config/upload');
 const { uploadImage } = require('../config/cloudinary');
 
 const router = express.Router();
@@ -13,11 +14,11 @@ const topicValidation = [
     .isInt().withMessage('Category ID must be a number')
 ];
 
-const createMatchValidation = [
-  body('adu_swara_topic_id')
-    .notEmpty().withMessage('Topic ID is required')
-    .isInt().withMessage('Topic ID must be a number')
-];
+// const createMatchValidation = [
+//   body('adu_swara_topic_id')
+//     .notEmpty().withMessage('Topic ID is required')
+//     .isInt().withMessage('Topic ID must be a number')
+// ];
 
 const submitResultValidation = [
   body('match_id')
@@ -67,13 +68,13 @@ router.get('/topics', topicValidation, validate, AduSwaraController.getTopics);
 router.get('/categories', AduSwaraController.getCategories);
 
 // Create new match (find opponent)
-router.post('/match/create', createMatchValidation, validate, AduSwaraController.createMatch);
+router.post('/match/create', validate, AduSwaraController.createMatch);
 
 // Get match detail
 router.get('/match/:id', AduSwaraController.getMatchDetail);
 
 // Submit match result
-router.post('/match/:id/submit', submitResultValidation, validate, AduSwaraController.submitMatchResult);
+router.post('/match/:id/submit', upload.single('video'), validate, AduSwaraController.submitMatchResult);
 
 // Get user match history
 router.get('/history', AduSwaraController.getMatchHistory);

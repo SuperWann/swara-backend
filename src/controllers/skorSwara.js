@@ -356,8 +356,6 @@ class SkorSwaraController {
         });
       }
 
-      // await SkorSwara
-
       const detailSkorSwara = await SkorSwara.findByPk(skor_swara_id, {
         include: [
           {
@@ -434,32 +432,14 @@ class SkorSwaraController {
         throw new Error("File audio tidak ditemukan");
       }
 
-      // 5️⃣ Download video untuk dikirim ke API eksternal
-      const videoResponse = await axios.get(videoUrl, { responseType: "stream" });
+      // ========================================
+      // 🚀 PARALLEL PROCESSING - VIDEO & AUDIO
+      // ========================================
 
-      const videoData = new FormData();
-      videoData.append("video", videoResponse.data, {
-        filename: "video.mp4",
-        contentType: "video/mp4",
-      });
-      videoData.append("level", level);
-
-      const uploadVideoResponse = await axios.post(
-        "https://cyberlace-swara-api.hf.space/api/v1/analyze",
-        videoData,
-        {
-          headers: { ...videoData.getHeaders() },
-        }
-      );
-
-      const { task_id } = uploadVideoResponse.data;
-
-      // 🔁 POLLING RESULT VIDEO
-      const checkResult = async (taskId, maxAttempts = 100, delayMs = 2000) => {
+      // Helper function untuk polling result
+      const checkResult = async (taskId, baseUrl, maxAttempts = 100, delayMs = 2000) => {
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          const response = await axios.get(
-            `https://cyberlace-swara-api.hf.space/api/v1/task/${taskId}`
-          );
+          const response = await axios.get(`${baseUrl}/${taskId}`);
 
           if (response.data.result !== null) return response.data;
 
@@ -473,68 +453,92 @@ class SkorSwaraController {
         throw new Error("Timeout waiting for result");
       };
 
-      const videoResult = await checkResult(task_id);
+      // Fungsi untuk analisis video
+      const analyzeVideo = async () => {
+        console.log("🎥 Starting video analysis...");
+        const videoResponse = await axios.get(videoUrl, { responseType: "stream" });
 
-      //======================================== AUDIO ANALYSIS ===============================================================
+        const videoData = new FormData();
+        videoData.append("video", videoResponse.data, {
+          filename: "video.mp4",
+          contentType: "video/mp4",
+        });
+        videoData.append("level", level);
 
-      const audioData = new FormData();
-      audioData.append("audio", fs.createReadStream(tempAudioPath), {
-        filename: "extracted_audio.wav",
-        contentType: "audio/wav",
-      });
-
-      if (skorSwaraMode.mode_type === 'text') {
-        audioData.append("custom_topic", skorSwaraTopic.topic);
-        audioData.append("reference_text", skorSwaraTopic.text);
-      } else if (skorSwaraMode.mode_type === 'image') {
-        // Check if skorSwaraImage exists before accessing its properties
-        if (!skorSwaraImage) {
-          throw new Error("Image data is required for image mode but not found");
-        }
-        const imageKeyword = skorSwaraImage.image_keyword
-          ? skorSwaraImage.image_keyword.split(",").map(item => item.trim())
-          : [];
-        audioData.append("custom_topic", skorSwaraImage.image_topic || "");
-        audioData.append("custom_keywords", JSON.stringify(imageKeyword));
-      } else if (skorSwaraMode.mode_type === 'custom') {
-        // Check if custom_keyword exists before splitting
-        const customKeyword = detailSkorSwara.custom_keyword || "";
-        const customKeywordList = customKeyword
-          ? customKeyword.split(",").map(item => item.trim())
-          : [];
-        audioData.append("custom_topic", detailSkorSwara.custom_topic || "");
-        audioData.append("custom_keywords", JSON.stringify(customKeywordList));
-      }
-
-      const uploadAudioResponse = await axios.post(
-        "https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/analyze",
-        audioData,
-        {
-          headers: { ...audioData.getHeaders() },
-        }
-      );
-
-      const audio = uploadAudioResponse.data;
-
-      const checkAudioResult = async (taskId, maxAttempts = 100, delayMs = 2000) => {
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          const response = await axios.get(
-            `https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/status/${taskId}`
-          );
-
-          if (response.data.result !== null) return response.data;
-
-          if (response.data.status === "failed") {
-            throw new Error(`Audio analysis failed: ${response.data.error}`);
+        const uploadVideoResponse = await axios.post(
+          "https://cyberlace-swara-api.hf.space/api/v1/analyze",
+          videoData,
+          {
+            headers: { ...videoData.getHeaders() },
           }
+        );
 
-          await new Promise((r) => setTimeout(r, delayMs));
-        }
-
-        throw new Error("Timeout waiting for audio result");
+        const { task_id } = uploadVideoResponse.data;
+        const result = await checkResult(
+          task_id,
+          "https://cyberlace-swara-api.hf.space/api/v1/task"
+        );
+        console.log("✅ Video analysis completed");
+        return result;
       };
 
-      const audioResult = await checkAudioResult(audio.task_id);
+      // Fungsi untuk analisis audio
+      const analyzeAudio = async () => {
+        console.log("🎵 Starting audio analysis...");
+        const audioData = new FormData();
+        audioData.append("audio", fs.createReadStream(tempAudioPath), {
+          filename: "extracted_audio.wav",
+          contentType: "audio/wav",
+        });
+
+        if (skorSwaraMode.mode_type === 'text') {
+          audioData.append("reference_text", skorSwaraTopic.text);
+        } else if (skorSwaraMode.mode_type === 'image') {
+          if (!skorSwaraImage) {
+            throw new Error("Image data is required for image mode but not found");
+          }
+          const imageKeyword = skorSwaraImage.image_keyword
+            ? skorSwaraImage.image_keyword.split(",").map(item => item.trim())
+            : [];
+          audioData.append("custom_topic", skorSwaraImage.image_topic || "");
+          audioData.append("custom_keywords", JSON.stringify(imageKeyword));
+        } else if (skorSwaraMode.mode_type === 'custom') {
+          const customKeyword = detailSkorSwara.custom_keyword || "";
+          const customKeywordList = customKeyword
+            ? customKeyword.split(",").map(item => item.trim())
+            : [];
+          audioData.append("custom_topic", detailSkorSwara.custom_topic || "");
+          audioData.append("custom_keywords", JSON.stringify(customKeywordList));
+        }
+
+        const uploadAudioResponse = await axios.post(
+          "https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/analyze",
+          audioData,
+          {
+            headers: { ...audioData.getHeaders() },
+          }
+        );
+
+        const audio = uploadAudioResponse.data;
+        const result = await checkResult(
+          audio.task_id,
+          "https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/status"
+        );
+        console.log("✅ Audio analysis completed");
+        return result;
+      };
+
+      // 🚀 Jalankan analisis video dan audio secara paralel
+      const [videoResult, audioResult] = await Promise.all([
+        analyzeVideo(),
+        analyzeAudio()
+      ]);
+
+      console.log("✅ Both analyses completed successfully");
+
+      // ========================================
+      // SCORING LOGIC
+      // ========================================
 
       let tempo = 0;
       let artikulasi = 0;
@@ -692,6 +696,7 @@ class SkorSwaraController {
           gestur,
           kata_pengisi,
           kata_tidak_senonoh,
+          video_result: videoUrl,
         },
         {
           where: { skor_swara_id: skor_swara_id }
