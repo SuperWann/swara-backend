@@ -1,3 +1,4 @@
+const { default: axios } = require("axios");
 const {
   AduSwaraCategory,
   AduSwaraTopic,
@@ -9,6 +10,7 @@ const {
   ContentSwara,
   sequelize,
 } = require("../models");
+const { DAILY_KEY } = require("../config/Daily")
 const { Op } = require("sequelize");
 
 class AduSwaraController {
@@ -232,10 +234,25 @@ class AduSwaraController {
       });
 
       if (!match) {
+        const room = await axios.post(
+          "https://api.daily.co/v1/rooms",
+          {
+            privacy: "public",
+            properties: {
+              enable_screenshare: true,
+              enable_chat: true,
+              max_participants: 2,
+            },
+          },
+          {
+            headers: { Authorization: `Bearer ${DAILY_KEY}` },
+          }
+        );
         match = await Match.create(
           {
             adu_swara_topic_id,
             created_at: new Date(),
+            meeting_url: room.data.url
           },
           { transaction }
         );
@@ -299,6 +316,7 @@ class AduSwaraController {
           match: fullMatch,
           isReady,
           countdown: 30,
+          meeting_url: match.meeting_url
         },
       });
     } catch (error) {
