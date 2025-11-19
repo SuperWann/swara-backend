@@ -107,6 +107,10 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 0,
       },
+      video_result: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+      },
       created_at: {
         type: DataTypes.DATE,
         allowNull: true,

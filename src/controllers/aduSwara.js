@@ -6,10 +6,16 @@ const {
   Match,
   MatchResult,
   User,
+  Mentee,
   ContentSwara,
   sequelize,
 } = require("../models");
 const { Op } = require("sequelize");
+const { cloudinary } = require("../config/cloudinary");
+const AudioExtractor = require('../utils/audioExtractor');
+const fs = require("fs");
+const axios = require('axios');
+const FormData = require("form-data");
 
 class AduSwaraController {
   static async getDashboard(req, res) {
@@ -118,12 +124,6 @@ class AduSwaraController {
             as: "category",
             attributes: ["adu_swara_category_id", "adu_swara_category"],
           },
-          {
-            model: Keyword,
-            as: "keywords",
-            through: { attributes: [] },
-            attributes: ["keyword_id", "keyword"],
-          },
         ],
         limit: parseInt(limit),
         offset: parseInt(offset),
@@ -177,130 +177,41 @@ class AduSwaraController {
     const transaction = await sequelize.transaction();
 
     try {
-      const { adu_swara_topic_id } = req.body;
-      const userId = req.user.user_id;
+      // const { adu_swara_topic_id } = req.body; random ini topicnya
 
-      const topic = await AduSwaraTopic.findByPk(adu_swara_topic_id);
-      if (!topic) {
+      const allTopics = await AduSwaraTopic.findAll();
+
+      if (allTopics.length === 0) {
         await transaction.rollback();
         return res.status(404).json({
           success: false,
-          message: "Topic not found",
+          message: "No topics available",
         });
       }
 
-      const userActiveMatch = await MatchResult.findOne({
-        where: { user_id: userId },
-        include: [
-          {
-            model: Match,
-            as: "match",
-            where: { adu_swara_topic_id },
-            required: true,
-            include: [
-              {
-                model: MatchResult,
-                as: "results",
-              },
-            ],
-          },
-        ],
-        transaction,
-      });
+      const randomTopic = allTopics[Math.floor(Math.random() * allTopics.length)];
+      const adu_swara_topic_id = randomTopic.adu_swara_topic_id;
 
-      if (userActiveMatch && userActiveMatch.match.results.length < 2) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "You already have an active match with this topic",
-        });
-      }
+      const matchs = await Match.create({
+        adu_swara_topic_id: adu_swara_topic_id,
+        created_at: new Date(),
+      }, { transaction });
 
-      const allMatches = await Match.findAll({
-        where: { adu_swara_topic_id },
-        include: [
-          {
-            model: MatchResult,
-            as: "results",
-          },
-        ],
-        transaction,
-      });
-
-      let match = allMatches.find((m) => {
-        return m.results.length === 1 && m.results[0].user_id !== userId;
-      });
-
-      if (!match) {
-        match = await Match.create(
-          {
-            adu_swara_topic_id,
-            created_at: new Date(),
-          },
-          { transaction }
-        );
-      }
-
-      const matchResult = await MatchResult.create(
+      const topic = await AduSwaraTopic.findByPk(
+        adu_swara_topic_id,
         {
-          match_id: match.match_id,
-          user_id: userId,
-          point_earned: 0,
-          kelancaran_point: 0,
-          penggunaan_bahasa_point: 0,
-          ekspresi_point: 0,
-          struktur_kalimat_point: 0,
-          isi_point: 0,
-          kelancaran_suggest: "",
-          penggunaan_bahasa_suggest: "",
-          ekspresi_suggest: "",
-          struktur_kalimat_suggest: "",
-          isi_suggest: "",
-        },
-        { transaction }
+          include: [{ model: AduSwaraCategory, as: "category" }],
+        }, { transaction }
       );
 
       await transaction.commit();
 
-      const fullMatch = await Match.findByPk(match.match_id, {
-        include: [
-          {
-            model: AduSwaraTopic,
-            as: "topic",
-            include: [
-              {
-                model: AduSwaraCategory,
-                as: "category",
-              },
-            ],
-          },
-          {
-            model: MatchResult,
-            as: "results",
-            include: [
-              {
-                model: User,
-                as: "user",
-                attributes: ["user_id", "full_name", "email"],
-              },
-            ],
-          },
-        ],
-      });
-
-      const isReady = fullMatch.results.length === 2;
-
       res.json({
         success: true,
-        message: isReady
-          ? "Match ready! Battle can start"
-          : "Waiting for opponent...",
-        data: {
-          match: fullMatch,
-          isReady,
-          countdown: 30,
-        },
+        message: "Match created successfully",
+        data: { matchs, topic },
       });
+
     } catch (error) {
       await transaction.rollback();
       res.status(500).json({
@@ -310,6 +221,144 @@ class AduSwaraController {
       });
     }
   }
+
+  // static async createMatch(req, res) {
+  //   const transaction = await sequelize.transaction();
+
+  //   try {
+  //     const { adu_swara_topic_id } = req.body;
+  //     const userId = req.user.user_id;
+
+  //     const topic = await AduSwaraTopic.findByPk(adu_swara_topic_id);
+  //     if (!topic) {
+  //       await transaction.rollback();
+  //       return res.status(404).json({
+  //         success: false,
+  //         message: "Topic not found",
+  //       });
+  //     }
+
+  //     const userActiveMatch = await MatchResult.findOne({
+  //       where: { user_id: userId },
+  //       include: [
+  //         {
+  //           model: Match,
+  //           as: "match",
+  //           where: { adu_swara_topic_id },
+  //           required: true,
+  //           include: [
+  //             {
+  //               model: MatchResult,
+  //               as: "results",
+  //             },
+  //           ],
+  //         },
+  //       ],
+  //       transaction,
+  //     });
+
+  //     if (userActiveMatch && userActiveMatch.match.results.length < 2) {
+  //       await transaction.rollback();
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: "You already have an active match with this topic",
+  //       });
+  //     }
+
+  //     const allMatches = await Match.findAll({
+  //       where: { adu_swara_topic_id },
+  //       include: [
+  //         {
+  //           model: MatchResult,
+  //           as: "results",
+  //         },
+  //       ],
+  //       transaction,
+  //     });
+
+  //     let match = allMatches.find((m) => {
+  //       return m.results.length === 1 && m.results[0].user_id !== userId;
+  //     });
+
+  //     if (!match) {
+  //       match = await Match.create(
+  //         {
+  //           adu_swara_topic_id,
+  //           created_at: new Date(),
+  //         },
+  //         { transaction }
+  //       );
+  //     }
+
+  //     const matchResult = await MatchResult.create(
+  //       {
+  //         match_id: match.match_id,
+  //         user_id: userId,
+  //         point_earned: 0,
+  //         kelancaran_point: 0,
+  //         penggunaan_bahasa_point: 0,
+  //         ekspresi_point: 0,
+  //         struktur_kalimat_point: 0,
+  //         isi_point: 0,
+  //         kelancaran_suggest: "",
+  //         penggunaan_bahasa_suggest: "",
+  //         ekspresi_suggest: "",
+  //         struktur_kalimat_suggest: "",
+  //         isi_suggest: "",
+  //       },
+  //       { transaction }
+  //     );
+
+  //     await transaction.commit();
+
+  //     const fullMatch = await Match.findByPk(match.match_id, {
+  //       include: [
+  //         {
+  //           model: AduSwaraTopic,
+  //           as: "topic",
+  //           include: [
+  //             {
+  //               model: AduSwaraCategory,
+  //               as: "category",
+  //             },
+  //           ],
+  //         },
+  //         {
+  //           model: MatchResult,
+  //           as: "results",
+  //           include: [
+  //             {
+  //               model: User,
+  //               as: "user",
+  //               attributes: ["user_id", "full_name", "email"],
+  //             },
+  //           ],
+  //         },
+  //       ],
+  //     });
+
+  //     const isReady = fullMatch.results.length === 2;
+
+  //     res.json({
+  //       success: true,
+  //       message: isReady
+  //         ? "Match ready! Battle can start"
+  //         : "Waiting for opponent...",
+  //       data: {
+  //         match: fullMatch,
+  //         isReady,
+  //         countdown: 30,
+  //       },
+  //     });
+  //   } catch (error) {
+  //     await transaction.rollback();
+  //     res.status(500).json({
+  //       success: false,
+  //       message: "Failed to create match",
+  //       error: error.message,
+  //     });
+  //   }
+  // }
 
   static async getMatchDetail(req, res) {
     try {
@@ -325,12 +374,7 @@ class AduSwaraController {
               {
                 model: AduSwaraCategory,
                 as: "category",
-              },
-              {
-                model: Keyword,
-                as: "keywords",
-                through: { attributes: [] },
-              },
+              }
             ],
           },
           {
@@ -378,126 +422,329 @@ class AduSwaraController {
 
   static async submitMatchResult(req, res) {
     const transaction = await sequelize.transaction();
+    let extracted = null;
+    let tempVideoPath = null;
+    let tempAudioPath = null;
 
     try {
       const { id: matchId } = req.params;
       const userId = req.user.user_id;
-      const {
-        kelancaran_point,
-        penggunaan_bahasa_point,
-        ekspresi_point,
-        struktur_kalimat_point,
-        isi_point,
-        kelancaran_suggest,
-        penggunaan_bahasa_suggest,
-        ekspresi_suggest,
-        struktur_kalimat_suggest,
-        isi_suggest,
-      } = req.body;
+      let level = 1;
 
-      const point_earned =
-        kelancaran_point +
-        penggunaan_bahasa_point +
-        ekspresi_point +
-        struktur_kalimat_point +
-        isi_point;
-
-      const matchResult = await MatchResult.findOne({
-        where: {
-          match_id: matchId,
-          user_id: userId,
-        },
-        transaction,
+      const match = await Match.findByPk(matchId, {
+        include: [
+          {
+            model: AduSwaraTopic,
+            as: "topic",
+            attributes: ["adu_swara_topic_id", "title", "keywords", "created_at", "image"],
+          },
+        ]
       });
 
-      if (!matchResult) {
-        await transaction.rollback();
+      if (!match) {
         return res.status(404).json({
           success: false,
-          message: "Match result not found",
+          message: "Match not found",
         });
       }
 
-      await matchResult.update(
-        {
-          point_earned,
-          kelancaran_point,
-          penggunaan_bahasa_point,
-          ekspresi_point,
-          struktur_kalimat_point,
-          isi_point,
-          kelancaran_suggest,
-          penggunaan_bahasa_suggest,
-          ekspresi_suggest,
-          struktur_kalimat_suggest,
-          isi_suggest,
-        },
-        { transaction }
-      );
-
-      await transaction.commit();
-
-      const updatedMatch = await Match.findByPk(matchId, {
-        include: [
-          {
-            model: MatchResult,
-            as: "results",
-            include: [
-              {
-                model: User,
-                as: "user",
-                attributes: ["user_id", "full_name", "email"],
-              },
-            ],
-          },
-        ],
-      });
-
-      let winner = null;
-      let isMatchComplete = false;
-
-      if (
-        updatedMatch.results.length === 2 &&
-        updatedMatch.results.every((r) => r.point_earned > 0)
-      ) {
-        isMatchComplete = true;
-        const sorted = updatedMatch.results.sort(
-          (a, b) => b.point_earned - a.point_earned
-        );
-        winner = sorted[0];
+      // Pastikan file ada
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: "Video file is required",
+        });
       }
 
-      res.json({
+      // 1️⃣ Upload video ke Cloudinary
+      const uploadToCloudinary = await cloudinary.uploader.upload(req.file.path, {
+        resource_type: "video",
+        folder: "swara-videos"
+      });
+
+      const videoUrl = uploadToCloudinary.secure_url;
+      console.log("📤 Video uploaded:", videoUrl);
+
+      const user = await User.findByPk(userId, {
+        include: [
+          {
+            model: Mentee,
+            as: 'mentee',
+            attributes: ['mentee_id', 'point', 'exercise_count', 'minute_count', 'token_count', 'last_token_reset']
+          }
+        ]
+      });
+
+      const point = user.mentee[0]?.point || 0;
+
+      if (point <= 200) level = 1;
+      else if (point <= 500) level = 2;
+      else if (point <= 900) level = 3;
+      else if (point <= 1800) level = 4;
+      else if (point <= 6500) level = 5;
+
+      console.log("level latihan:", level);
+
+      // 4️⃣ Extract audio
+      extracted = await AudioExtractor.extractFromCloudinary(videoUrl);
+
+      tempVideoPath = extracted.videoPath;
+      tempAudioPath = extracted.audioPath;
+
+      console.log("✅ Audio berhasil diekstrak");
+      console.log("📁 Video path:", tempVideoPath);
+      console.log("📁 Audio path:", tempAudioPath);
+
+      if (!fs.existsSync(tempAudioPath)) {
+        throw new Error("File audio tidak ditemukan");
+      }
+
+      // ========================================
+      // 🚀 PARALLEL PROCESSING - VIDEO & AUDIO
+      // ========================================
+
+      const checkResult = async (taskId, baseUrl, maxAttempts = 100, delayMs = 2000) => {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          const response = await axios.get(`${baseUrl}/${taskId}`);
+
+          if (response.data.result !== null) return response.data;
+
+          if (response.data.status === "failed") {
+            throw new Error(`Analysis failed: ${response.data.error}`);
+          }
+
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
+
+        throw new Error("Timeout waiting for result");
+      };
+
+      const analyzeVideo = async () => {
+        console.log("🎥 Starting video analysis...");
+        const videoResponse = await axios.get(videoUrl, { responseType: "stream" });
+
+        const videoData = new FormData();
+        videoData.append("video", videoResponse.data, {
+          filename: "video.mp4",
+          contentType: "video/mp4",
+        });
+        videoData.append("level", level);
+
+        const uploadVideoResponse = await axios.post(
+          "https://cyberlace-swara-api.hf.space/api/v1/analyze",
+          videoData,
+          {
+            headers: { ...videoData.getHeaders() },
+          }
+        );
+
+        const { task_id } = uploadVideoResponse.data;
+        const result = await checkResult(
+          task_id,
+          "https://cyberlace-swara-api.hf.space/api/v1/task"
+        );
+        console.log("✅ Video analysis completed");
+        return result;
+      };
+
+      const analyzeAudio = async () => {
+        console.log("🎵 Starting audio analysis...");
+        const audioData = new FormData();
+        audioData.append("audio", fs.createReadStream(tempAudioPath), {
+          filename: "extracted_audio.wav",
+          contentType: "audio/wav",
+        });
+
+        audioData.append("custom_topic", match.topic.title);
+        audioData.append("custom_keywords", match.topic.keywords);
+
+        const uploadAudioResponse = await axios.post(
+          "https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/analyze",
+          audioData,
+          {
+            headers: { ...audioData.getHeaders() },
+          }
+        );
+
+        const audio = uploadAudioResponse.data;
+        const result = await checkResult(
+          audio.task_id,
+          "https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/status"
+        );
+        console.log("✅ Audio analysis completed");
+        return result;
+      };
+
+      const [videoResult, audioResult] = await Promise.all([
+        analyzeVideo(),
+        analyzeAudio()
+      ]);
+
+      console.log("✅ Both analyses completed successfully");
+
+      let tempo = 0;
+      let artikulasi = 0;
+      let kontak_mata = 0;
+      let kesesuaian_topik = 0;
+      let struktur = 0;
+
+      let jeda = 0;
+      let first_impression = 0;
+      let ekspresi = 0;
+      let gestur = 0;
+      let kata_pengisi = 0;
+      let kata_tidak_senonoh = 0;
+
+      // PENILAIAN LEVEL 1 
+      if (level === 1) {
+
+        tempo = audioResult.result.tempo.score;
+        artikulasi = audioResult.result.articulation.score;
+
+        jeda = audioResult.result.tempo.has_long_pause ? 0 : 1;
+        first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : 0;
+        ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 1 : 0;
+        gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
+          !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
+          ? 1 : 0;
+        kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -0.25 : 1;
+        kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
+
+      } else if (level === 2) {
+
+        tempo = audioResult.result.tempo.score;
+        artikulasi = audioResult.result.articulation.score;
+        kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 &&
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8 ? 4 :
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 &&
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10 ? 3 :
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 &&
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12 ? 2 :
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12 ? 1 : 0;
+
+        jeda = audioResult.result.tempo.has_long_pause ? -1 : 1;
+        first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -1;
+        ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 1 : 0;
+        gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
+          !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
+          ? 1 : -1;
+        kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -0.5 : 1;
+        kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
+
+      } else if (level === 3) {
+
+        tempo = audioResult.result.tempo.score;
+        artikulasi = audioResult.result.articulation.score;
+        kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 &&
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8 ? 4 :
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 &&
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10 ? 3 :
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 &&
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12 ? 2 :
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12 ? 1 : 0;
+        kesesuaian_topik = audioResult.result.keywords.score;
+
+        jeda = audioResult.result.tempo.has_long_pause ? -2 : 1;
+        first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -2;
+        ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 2 : -1;
+        gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
+          !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
+          ? 0 : -2;
+        kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -1 : 1;
+        kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
+
+      } else if (level === 4) {
+
+        tempo = audioResult.result.tempo.score;
+        artikulasi = audioResult.result.articulation.score;
+        kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 &&
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8 ? 4 :
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 &&
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10 ? 3 :
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 &&
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12 ? 2 :
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12 ? 1 : 0;
+        kesesuaian_topik = audioResult.result.keywords.score;
+
+        jeda = audioResult.result.tempo.has_long_pause ? -2 : 1;
+        first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -3;
+        ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 2 : -2;
+        gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
+          !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
+          ? 0 : -2;
+        kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -1.5 : 1;
+        kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
+
+      } else {
+
+        tempo = audioResult.result.tempo.score;
+        artikulasi = audioResult.result.articulation.score;
+        kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
+          videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 &&
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8 ? 4 :
+            videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 &&
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10 ? 3 :
+              videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 &&
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12 ? 2 :
+                videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12 ? 1 : 0;
+        kesesuaian_topik = audioResult.result.keywords.score;
+        struktur = audioResult.result.structure.score;
+
+        jeda = audioResult.result.tempo.has_long_pause ? -5 : 3;
+        first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -5;
+        ekspresi = videoResult.result.analysis_results.facial_expression.dominant_expression === 'Happy' ? 5 : -5;
+        gestur = videoResult.result.analysis_results.gesture.score >= 7 &&
+          !videoResult.result.analysis_results.gesture.details.nervous_gestures_detected
+          ? 0 : -5;
+        kata_pengisi = audioResult.result.articulation.filler_count > 0 ? -2 : 1;
+        kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
+
+      }
+
+      // Hitung total point earned
+      const pointEarned =
+        tempo +
+        artikulasi +
+        kontak_mata +
+        kesesuaian_topik +
+        struktur +
+        jeda +
+        first_impression +
+        ekspresi +
+        gestur +
+        kata_pengisi +
+        kata_tidak_senonoh;
+
+      const result = await MatchResult.create({
+        match_id: matchId,
+        user_id: userId,
+        point_earned: pointEarned,
+        tempo,
+        artikulasi,
+        kontak_mata,
+        kesesuaian_topik,
+        struktur,
+        jeda,
+        first_impression,
+        ekspresi,
+        gestur,
+        kata_pengisi,
+        kata_tidak_senonoh,
+      });
+
+      res.status(200).json({
         success: true,
         message: "Match result submitted successfully",
-        data: {
-          match_id: updatedMatch.match_id,
-          is_match_complete: isMatchComplete,
-          results: updatedMatch.results.map((r) => ({
-            user_id: r.user_id,
-            full_name: r.user.full_name,
-            point_earned: r.point_earned,
-            kelancaran_point: r.kelancaran_point,
-            penggunaan_bahasa_point: r.penggunaan_bahasa_point,
-            ekspresi_point: r.ekspresi_point,
-            struktur_kalimat_point: r.struktur_kalimat_point,
-            isi_point: r.isi_point,
-            kelancaran_suggest: r.kelancaran_suggest,
-            penggunaan_bahasa_suggest: r.penggunaan_bahasa_suggest,
-            ekspresi_suggest: r.ekspresi_suggest,
-            struktur_kalimat_suggest: r.struktur_kalimat_suggest,
-            isi_suggest: r.isi_suggest,
-            is_you: r.user_id === userId,
-          })),
-          winner: winner
-            ? {
-              user_id: winner.user_id,
-              full_name: winner.user.full_name,
-              point_earned: winner.point_earned,
-            }
-            : null,
-        },
+        data: result,
       });
+
     } catch (error) {
       await transaction.rollback();
       res.status(500).json({
@@ -507,6 +754,138 @@ class AduSwaraController {
       });
     }
   }
+
+  // static async submitMatchResult(req, res) {
+  //   const transaction = await sequelize.transaction();
+
+  //   try {
+  //     const { id: matchId } = req.params;
+  //     const userId = req.user.user_id;
+  //     const {
+  //       kelancaran_point,
+  //       penggunaan_bahasa_point,
+  //       ekspresi_point,
+  //       struktur_kalimat_point,
+  //       isi_point,
+  //       kelancaran_suggest,
+  //       penggunaan_bahasa_suggest,
+  //       ekspresi_suggest,
+  //       struktur_kalimat_suggest,
+  //       isi_suggest,
+  //     } = req.body;
+
+  //     const point_earned =
+  //       kelancaran_point +
+  //       penggunaan_bahasa_point +
+  //       ekspresi_point +
+  //       struktur_kalimat_point +
+  //       isi_point;
+
+  //     const matchResult = await MatchResult.findOne({
+  //       where: {
+  //         match_id: matchId,
+  //         user_id: userId,
+  //       },
+  //       transaction,
+  //     });
+
+  //     if (!matchResult) {
+  //       await transaction.rollback();
+  //       return res.status(404).json({
+  //         success: false,
+  //         message: "Match result not found",
+  //       });
+  //     }
+
+  //     await matchResult.update(
+  //       {
+  //         point_earned,
+  //         kelancaran_point,
+  //         penggunaan_bahasa_point,
+  //         ekspresi_point,
+  //         struktur_kalimat_point,
+  //         isi_point,
+  //         kelancaran_suggest,
+  //         penggunaan_bahasa_suggest,
+  //         ekspresi_suggest,
+  //         struktur_kalimat_suggest,
+  //         isi_suggest,
+  //       },
+  //       { transaction }
+  //     );
+
+  //     await transaction.commit();
+
+  //     const updatedMatch = await Match.findByPk(matchId, {
+  //       include: [
+  //         {
+  //           model: MatchResult,
+  //           as: "results",
+  //           include: [
+  //             {
+  //               model: User,
+  //               as: "user",
+  //               attributes: ["user_id", "full_name", "email"],
+  //             },
+  //           ],
+  //         },
+  //       ],
+  //     });
+
+  //     let winner = null;
+  //     let isMatchComplete = false;
+
+  //     if (
+  //       updatedMatch.results.length === 2 &&
+  //       updatedMatch.results.every((r) => r.point_earned > 0)
+  //     ) {
+  //       isMatchComplete = true;
+  //       const sorted = updatedMatch.results.sort(
+  //         (a, b) => b.point_earned - a.point_earned
+  //       );
+  //       winner = sorted[0];
+  //     }
+
+  //     res.json({
+  //       success: true,
+  //       message: "Match result submitted successfully",
+  //       data: {
+  //         match_id: updatedMatch.match_id,
+  //         is_match_complete: isMatchComplete,
+  //         results: updatedMatch.results.map((r) => ({
+  //           user_id: r.user_id,
+  //           full_name: r.user.full_name,
+  //           point_earned: r.point_earned,
+  //           kelancaran_point: r.kelancaran_point,
+  //           penggunaan_bahasa_point: r.penggunaan_bahasa_point,
+  //           ekspresi_point: r.ekspresi_point,
+  //           struktur_kalimat_point: r.struktur_kalimat_point,
+  //           isi_point: r.isi_point,
+  //           kelancaran_suggest: r.kelancaran_suggest,
+  //           penggunaan_bahasa_suggest: r.penggunaan_bahasa_suggest,
+  //           ekspresi_suggest: r.ekspresi_suggest,
+  //           struktur_kalimat_suggest: r.struktur_kalimat_suggest,
+  //           isi_suggest: r.isi_suggest,
+  //           is_you: r.user_id === userId,
+  //         })),
+  //         winner: winner
+  //           ? {
+  //             user_id: winner.user_id,
+  //             full_name: winner.user.full_name,
+  //             point_earned: winner.point_earned,
+  //           }
+  //           : null,
+  //       },
+  //     });
+  //   } catch (error) {
+  //     await transaction.rollback();
+  //     res.status(500).json({
+  //       success: false,
+  //       message: "Failed to submit match result",
+  //       error: error.message,
+  //     });
+  //   }
+  // }
 
   static async getMatchHistory(req, res) {
     try {
@@ -680,25 +1059,11 @@ class AduSwaraController {
         {
           title,
           adu_swara_category_id,
+          keywords,
           image: req.file ? req.file.path : null
         },
         { transaction }
       );
-
-      // Process keywords (split by comma)
-      const keywordArray = keywords.split(",").map(k => k.trim()).filter(Boolean);
-
-      for (const word of keywordArray) {
-        // Check if keyword exists
-        const [keyword] = await Keyword.findOrCreate({
-          where: { keyword: word },
-          defaults: { keyword: word },
-          transaction
-        });
-
-        // Attach to pivot table
-        await topic.addKeyword(keyword, { transaction });
-      }
 
       await transaction.commit();
 
@@ -773,30 +1138,11 @@ class AduSwaraController {
         {
           title: title || topic.title,
           adu_swara_category_id: adu_swara_category_id || topic.adu_swara_category_id,
+          keywords: keywords || topic.keywords,
           image: req.file ? req.file.path : topic.image
         },
         { transaction }
       );
-
-      // ===== Keyword Handling =====
-      let keywordArray = [];
-
-      if (keywords) {
-        keywordArray = keywords
-          .split(",")
-          .map(k => k.trim())
-          .filter(Boolean);
-
-        for (const word of keywordArray) {
-          const [keyword] = await Keyword.findOrCreate({
-            where: { keyword: word },
-            defaults: { keyword: word },
-            transaction
-          });
-
-          await topic.addKeyword(keyword, { transaction });
-        }
-      }
 
       await transaction.commit();
 

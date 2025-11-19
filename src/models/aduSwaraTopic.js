@@ -12,6 +12,10 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Title is required' }
       }
     },
+    keywords: {
+      type: DataTypes.TEXT,
+      allowNull: false
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -38,13 +42,6 @@ module.exports = (sequelize, DataTypes) => {
     AduSwaraTopic.belongsTo(models.AduSwaraCategory, {
       foreignKey: 'adu_swara_category_id',
       as: 'category'
-    });
-    
-    AduSwaraTopic.belongsToMany(models.Keyword, {
-      through: 'adu_swara_keywords',
-      foreignKey: 'adu_swara_topic_id',
-      otherKey: 'keyword_id',
-      as: 'keywords'
     });
 
     AduSwaraTopic.hasMany(models.Match, {

@@ -79,7 +79,7 @@ module.exports = (sequelize, DataTypes) => {
     refreshToken: {
       type: DataTypes.TEXT,
       allowNull: true,
-      field: 'refresh_token' 
+      field: 'refresh_token'
     },
     refreshTokenExpiresAt: {
       type: DataTypes.DATE,
@@ -128,10 +128,6 @@ module.exports = (sequelize, DataTypes) => {
       as: 'gender'
     });
     User.hasMany(models.Mentee, { foreignKey: 'user_id', as: 'mentee' });
-    User.hasMany(models.WatchHistory, {
-      foreignKey: 'user_id',
-      as: 'watchHistory'
-    });
     User.belongsToMany(models.Badge, { through: 'user_badges', foreignKey: 'user_id', otherKey: 'badge_id', as: 'badges' });
     User.hasMany(models.MatchResult, {
       foreignKey: 'user_id',

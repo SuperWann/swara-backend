@@ -88,7 +88,7 @@ class PodiumController {
     
     try {
       const userId = req.user.user_id;
-      const { podium_category_id } = req.body;
+      const { podium_category_id } = req.body;  
 
       // Validate podium_category_id is provided
       if (!podium_category_id) {
