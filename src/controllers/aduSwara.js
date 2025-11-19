@@ -204,7 +204,7 @@ class AduSwaraController {
 
 
       let match = allMatches.find((m) => {
-        return m.results.length <= 1 && m.results[0].user_id !== userId;
+        return m.results.length <= 1 && (m.results[0]?.user_id) !== userId;
       });
 
       let isReady = true
@@ -234,6 +234,25 @@ class AduSwaraController {
           { transaction }
         );
       }
+
+      await MatchResult.create(
+        {
+          match_id: match.match_id,
+          user_id: userId,
+          point_earned: 0,
+          kelancaran_point: 0,
+          penggunaan_bahasa_point: 0,
+          ekspresi_point: 0,
+          struktur_kalimat_point: 0,
+          isi_point: 0,
+          kelancaran_suggest: "",
+          penggunaan_bahasa_suggest: "",
+          ekspresi_suggest: "",
+          struktur_kalimat_suggest: "",
+          isi_suggest: "",
+        },
+        { transaction }
+      );
 
       await transaction.commit();
 
