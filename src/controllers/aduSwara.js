@@ -193,11 +193,25 @@ class AduSwaraController {
       const randomTopic = allTopics[Math.floor(Math.random() * allTopics.length)];
       const adu_swara_topic_id = randomTopic.adu_swara_topic_id;
 
+      const allMatches = await Match.findAll({
+        where: { adu_swara_topic_id },
+        include: [
+          {
+            model: MatchResult,
+            as: "results",
+          },
+        ],
+        transaction,
+      });
+
+      let isReady = true
+
       let match = allMatches.find((m) => {
         return m.results.length === 1 && m.results[0].user_id !== userId;
       });
 
       if (!match) {
+        isReady = false
         const room = await axios.post(
           "https://api.daily.co/v1/rooms",
           {
@@ -237,10 +251,9 @@ class AduSwaraController {
           ? "Match ready! Battle can start"
           : "Waiting for opponent...",
         data: {
-          match: fullMatch,
+          match: match,
           isReady,
           countdown: 30,
-          meeting_url: match.meeting_url
         },
       });
 
