@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
   const PodiumSession = sequelize.define('PodiumSession', {
-    session_id: {
+    podium_session_id: {
       type: DataTypes.BIGINT,
       primaryKey: true,
       autoIncrement: true
@@ -21,64 +21,39 @@ module.exports = (sequelize, DataTypes) => {
         key: 'podium_category_id'
       }
     },
-    session_type: {
-      type: DataTypes.ENUM('interview', 'speech'),
-      allowNull: false
-    },
-    content_data: {
-      type: DataTypes.JSON,
+    podium_text_id: {
+      type: DataTypes.BIGINT,
       allowNull: false,
-      comment: 'Stores questions or text that was given to user'
+      references: {
+        model: 'podium_texts',
+        key: 'podium_text_id'
+      }
     },
-    status: {
-      type: DataTypes.ENUM('active', 'completed', 'abandoned'),
-      allowNull: false,
-      defaultValue: 'active'
-    },
-    started_at: {
+    created_at: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW
-    },
-    completed_at: {
-      type: DataTypes.DATE,
-      allowNull: true
-    },
-    progress_id: {
-      type: DataTypes.BIGINT,
-      allowNull: true,
-      references: {
-        model: 'progress_podium',
-        key: 'progress_podium_id'
-      },
-      comment: 'Reference to progress after completion'
     }
   }, {
     tableName: 'podium_sessions',
-    timestamps: false,
-    indexes: [
-      {
-        fields: ['user_id', 'status']
-      },
-      {
-        fields: ['started_at']
-      }
-    ]
+    timestamps: false
   });
 
-  PodiumSession.associate = (models) => {
-    PodiumSession.belongsTo(models.User, {
-      foreignKey: 'user_id',
-      as: 'user'
-    });
-    PodiumSession.belongsTo(models.PodiumCategory, {
-      foreignKey: 'podium_category_id',
-      as: 'category'
-    });
-    PodiumSession.belongsTo(models.ProgressPodium, {
-      foreignKey: 'progress_id',
+  PodiumSession.associate = function (models) {
+    PodiumSession.belongsTo(models.User, { foreignKey: 'user_id', as: 'user' });
+    PodiumSession.belongsTo(models.PodiumCategory, { foreignKey: 'podium_category_id', as: 'podium_category' });
+    PodiumSession.belongsTo(models.PodiumText, { foreignKey: 'podium_text_id', as: 'podium_text' });
+
+    // One-to-One
+    PodiumSession.hasOne(models.ProgressPodium, {
+      foreignKey: 'podium_session_id',
       as: 'progress'
     });
+
+    PodiumSession.hasMany(models.PodiumInterviewResult, {
+      foreignKey: 'podium_session_id',
+      as: 'interview_results'
+    })
   };
 
   return PodiumSession;

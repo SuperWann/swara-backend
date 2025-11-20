@@ -31,5 +31,9 @@ module.exports = (sequelize, DataTypes) => {
     timestamps: false
   });
 
+  PodiumCategory.associate = function (models) {
+    PodiumCategory.hasMany(models.PodiumSession, { foreignKey: 'podium_category_id', as: 'podium_sessions' });
+  };
+
   return PodiumCategory;
 };
