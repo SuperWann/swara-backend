@@ -107,6 +107,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 0,
       },
+      status: {
+        type: DataTypes.ENUM("analyzing", "complete"),
+        allowNull: false,
+        defaultValue: "analyzing",
+      },
       video_result: {
         type: DataTypes.TEXT,
         allowNull: true,
