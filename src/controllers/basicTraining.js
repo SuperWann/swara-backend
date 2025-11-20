@@ -2,6 +2,7 @@ const {
   BasicTrainingMode,
   BasicTrainingLevel,
   BasicTrainingSession,
+  BasicTrainingMaterial,
   User,
   sequelize,
 } = require("../models");
@@ -129,10 +130,26 @@ class BasicTrainingController {
               "minimum_score",
               "instruction",
             ],
+            include: [
+              {
+                model: BasicTrainingMaterial,
+                as: "materials",
+                where: { is_active: true },
+                attributes: [
+                  "basic_training_material_id",
+                  "content",
+                  "order_index",
+                ],
+                required: false,
+              },
+            ],
             required: false,
           },
         ],
-        order: [[{ model: BasicTrainingLevel, as: "levels" }, "level", "ASC"]],
+        order: [
+          [{ model: BasicTrainingLevel, as: "levels" }, "level", "ASC"],
+          [{ model: BasicTrainingLevel, as: "levels" }, { model: BasicTrainingMaterial, as: "materials" }, "order_index", "ASC"],
+        ],
       });
 
       if (!mode) {
