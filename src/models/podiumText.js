@@ -5,7 +5,14 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true
     },
-    podium_text: {
+    topic: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+      validate: {
+        notEmpty: { msg: 'Podium topic is required' }
+      }
+    },
+    text: {
       type: DataTypes.TEXT,
       allowNull: false,
       validate: {
@@ -16,25 +23,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW
-    },
-    podium_category_id: {
-      type: DataTypes.BIGINT,
-      allowNull: false,
-      references: {
-        model: 'podium_categories',
-        key: 'podium_category_id'
-      }
     }
   }, {
     tableName: 'podium_texts',
     timestamps: false
   });
 
-  PodiumText.associate = (models) => {
-    PodiumText.belongsTo(models.PodiumCategory, {
-      foreignKey: 'podium_category_id',
-      as: 'category'
-    });
+  PodiumText.associate = function (models) {
+    PodiumText.hasMany(models.ProgressPodium, { foreignKey: 'podium_text_id' });
   };
 
   return PodiumText;
