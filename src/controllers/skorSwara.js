@@ -322,6 +322,7 @@ class SkorSwaraController {
       res.json({
         success: true,
         message: "Latihan started successfully",
+        status: skorSwara.status,
         data: responseData,
       });
 
@@ -696,6 +697,7 @@ class SkorSwaraController {
           gestur,
           kata_pengisi,
           kata_tidak_senonoh,
+          status: "complete",
           video_result: videoUrl,
         },
         {
@@ -925,6 +927,7 @@ class SkorSwaraController {
       const { page = 1, limit = 20 } = req.query;
       const offset = (page - 1) * limit;
 
+      // Ambil list riwayat
       const { count, rows: riwayatList } = await SkorSwara.findAndCountAll({
         where: {
           user_id: userId,
@@ -934,7 +937,7 @@ class SkorSwaraController {
           {
             model: SkorSwaraTopic,
             as: "skor_swara_topic",
-            attributes: ["skor_swara_topic_id", "topic"],
+            attributes: ["skor_swara_topic_id", "topic", "text"],
             required: false,
           },
           {
@@ -949,6 +952,7 @@ class SkorSwaraController {
         distinct: true,
       });
 
+      // Default statistik
       let stats = {
         total_latihan: count,
         average_scores: {
@@ -963,11 +967,11 @@ class SkorSwaraController {
           gestur: 0,
           kata_pengisi: 0,
           kata_tidak_senonoh: 0,
-          overall: 0,
         },
-        total_points: 0,
+        total_points: 0
       };
 
+      // Hitung statistik jika ada data
       if (count > 0) {
         const allScores = await SkorSwara.findAll({
           where: {
@@ -986,29 +990,28 @@ class SkorSwaraController {
             [sequelize.fn("AVG", sequelize.col("gestur")), "avg_gestur"],
             [sequelize.fn("AVG", sequelize.col("kata_pengisi")), "avg_kata_pengisi"],
             [sequelize.fn("AVG", sequelize.col("kata_tidak_senonoh")), "avg_kata_tidak_senonoh"],
-            [sequelize.fn("AVG", sequelize.col("skor_total")), "avg_overall"],
             [sequelize.fn("SUM", sequelize.col("point_earned")), "total_points"],
           ],
           raw: true,
         });
 
-        if (allScores[0]) {
-          stats.average_scores = {
-            tempo: parseFloat(allScores[0].avg_tempo || 0).toFixed(2),
-            artikulasi: parseFloat(allScores[0].avg_artikulasi || 0).toFixed(2),
-            kontak_mata: parseFloat(allScores[0].avg_kontak_mata || 0).toFixed(2),
-            kesesuaian_topik: parseFloat(allScores[0].avg_kesesuaian_topik || 0).toFixed(2),
-            struktur: parseFloat(allScores[0].avg_struktur || 0).toFixed(2),
-            jeda: parseFloat(allScores[0].avg_jeda || 0).toFixed(2),
-            first_impression: parseFloat(allScores[0].avg_first_impression || 0).toFixed(2),
-            ekspresi: parseFloat(allScores[0].avg_ekspresi || 0).toFixed(2),
-            gestur: parseFloat(allScores[0].avg_gestur || 0).toFixed(2),
-            kata_pengisi: parseFloat(allScores[0].avg_kata_pengisi || 0).toFixed(2),
-            kata_tidak_senonoh: parseFloat(allScores[0].avg_kata_tidak_senonoh || 0).toFixed(2),
-            overall: parseFloat(allScores[0].avg_overall || 0).toFixed(2),
-          };
-          stats.total_points = parseInt(allScores[0].total_points || 0);
-        }
+        const s = allScores[0];
+
+        stats.average_scores = {
+          tempo: Number(s.avg_tempo || 0).toFixed(2),
+          artikulasi: Number(s.avg_artikulasi || 0).toFixed(2),
+          kontak_mata: Number(s.avg_kontak_mata || 0).toFixed(2),
+          kesesuaian_topik: Number(s.avg_kesesuaian_topik || 0).toFixed(2),
+          struktur: Number(s.avg_struktur || 0).toFixed(2),
+          jeda: Number(s.avg_jeda || 0).toFixed(2),
+          first_impression: Number(s.avg_first_impression || 0).toFixed(2),
+          ekspresi: Number(s.avg_ekspresi || 0).toFixed(2),
+          gestur: Number(s.avg_gestur || 0).toFixed(2),
+          kata_pengisi: Number(s.avg_kata_pengisi || 0).toFixed(2),
+          kata_tidak_senonoh: Number(s.avg_kata_tidak_senonoh || 0).toFixed(2),
+        };
+
+        stats.total_points = Number(s.total_points || 0);
       }
 
       res.json({
@@ -1025,6 +1028,7 @@ class SkorSwaraController {
           },
         },
       });
+
     } catch (error) {
       res.status(500).json({
         success: false,
@@ -1059,7 +1063,7 @@ class SkorSwaraController {
           {
             model: SkorSwaraImage,
             as: "image",
-            attributes: ["image_id", "image_url", "image_description"],
+            attributes: ["image_id", "image_url", "image_topic", "image_keyword"],
             required: false,
           },
         ],
@@ -1095,16 +1099,14 @@ class SkorSwaraController {
       // Add topic info based on mode
       if (skorSwara.mode.mode_type === 'text' && skorSwara.skor_swara_topic) {
         responseData.topic = skorSwara.skor_swara_topic;
+
       } else if (skorSwara.mode.mode_type === 'image') {
-        responseData.topic = skorSwara.skor_swara_topic || {
-          topic: "Deskripsi Gambar",
-          text: "Deskripsikan gambar yang Anda lihat dengan detail",
-        };
         if (skorSwara.image) {
           responseData.image = {
             image_id: skorSwara.image.image_id,
             image_url: skorSwara.image.image_url,
-            image_description: skorSwara.image.image_description,
+            image_topic: skorSwara.image.image_topic,
+            image_keyword: skorSwara.image.image_keyword,
           };
         }
       } else if (skorSwara.mode.mode_type === 'custom') {
