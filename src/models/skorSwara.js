@@ -7,11 +7,6 @@ module.exports = (sequelize, DataTypes) => {
         primaryKey: true,
         autoIncrement: true,
       },
-      point_earned: {
-        type: DataTypes.FLOAT,
-        allowNull: false,
-        defaultValue: 0,
-      },
       skor_swara_topic_id: {
         type: DataTypes.INTEGER,
         allowNull: true,
@@ -51,6 +46,11 @@ module.exports = (sequelize, DataTypes) => {
       custom_keyword: {
         type: DataTypes.TEXT,
         allowNull: true,
+      },
+      point_earned: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
       },
       tempo: {
         type: DataTypes.FLOAT,
@@ -109,7 +109,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       video_result: {
         type: DataTypes.TEXT,
-        allowNull: false,
+        allowNull: true,
       },
       created_at: {
         type: DataTypes.DATE,

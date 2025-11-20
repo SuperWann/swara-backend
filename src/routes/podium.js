@@ -56,7 +56,10 @@ router.get('/categories', PodiumController.getCategories);
 router.get('/categories/:id', PodiumController.getCategoryDetail);
 
 // Start new podium session with selected category
-router.post('/start', startPodiumValidation, validate, PodiumController.startPodium);
+// router.post('/start', startPodiumValidation, validate, PodiumController.startPodium);
+
+// Start Pidato Podium
+router.post('/start-pidato', PodiumController.startPidatoPodium);
 
 // Submit podium result
 router.post('/submit', submitResultValidation, validate, PodiumController.submitPodiumResult);

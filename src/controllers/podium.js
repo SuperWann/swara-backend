@@ -1,10 +1,10 @@
-const { 
-  PodiumCategory, 
-  PodiumText, 
+const {
+  PodiumCategory,
+  PodiumText,
   PodiumInterviewQuestion,
   ProgressPodium,
   PodiumSession,
-  sequelize 
+  sequelize,
 } = require('../models');
 
 class PodiumController {
@@ -83,14 +83,13 @@ class PodiumController {
     }
   }
 
-  static async startPodium(req, res) {
+  static async startPidatoPodium(req, res) {
     const transaction = await sequelize.transaction();
-    
+
     try {
       const userId = req.user.user_id;
-      const { podium_category_id } = req.body;  
+      const { podium_category_id } = req.body;
 
-      // Validate podium_category_id is provided
       if (!podium_category_id) {
         await transaction.rollback();
         return res.status(400).json({
@@ -99,27 +98,9 @@ class PodiumController {
         });
       }
 
-      // Check for active session
-      const activeSession = await PodiumSession.findOne({
-        where: { user_id: userId, status: 'active' }
-      });
+      const category = await PodiumCategory.findByPk(podium_category_id);
 
-      if (activeSession) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: 'You have an active session. Please complete or abandon it first.',
-          data: {
-            session_id: activeSession.session_id,
-            started_at: activeSession.started_at
-          }
-        });
-      }
-
-      // Get selected category
-      const selectedCategory = await PodiumCategory.findByPk(podium_category_id);
-      
-      if (!selectedCategory) {
+      if (!category) {
         await transaction.rollback();
         return res.status(404).json({
           success: false,
@@ -127,68 +108,50 @@ class PodiumController {
         });
       }
 
-      const sessionType = selectedCategory.is_interview ? 'interview' : 'speech';
-      let contentData = {};
+      let topicId = null;
+      let topic = null;
+      let text = null;
 
-      if (selectedCategory.is_interview) {
-        const questions = await PodiumInterviewQuestion.findAll({
-          where: { podium_category_id: selectedCategory.podium_category_id },
-          attributes: ['podium_interview_question_id', 'question'],
-          order: sequelize.random(),
-          limit: 5
+      if (category.podium_category === 'Pidato') {
+        const topics = await PodiumText.findAll({
+          attributes: ['podium_text_id', 'topic', 'text'],
         });
 
-        if (questions.length === 0) {
+        if (topics.length === 0) {
           await transaction.rollback();
           return res.status(404).json({
             success: false,
-            message: 'No interview questions available for this category'
+            message: 'No topics available for this category'
           });
         }
 
-        contentData = { questions: questions.map(q => q.toJSON()) };
-      } else {
-        const text = await PodiumText.findOne({
-          where: { podium_category_id: selectedCategory.podium_category_id },
-          attributes: ['podium_text_id', 'podium_text'],
-          order: sequelize.random()
-        });
-
-        if (!text) {
-          await transaction.rollback();
-          return res.status(404).json({
-            success: false,
-            message: 'No podium text available for this category'
-          });
-        }
-
-        contentData = { text: text.toJSON() };
+        const randomIndex = Math.floor(Math.random() * topics.length);
+        topicId = topics[randomIndex].podium_text_id;
+        topic = topics[randomIndex].topic;
+        text = topics[randomIndex].text;
       }
 
-      const session = await PodiumSession.create({
+      const progressPodium = await ProgressPodium.create({
         user_id: userId,
-        podium_category_id: selectedCategory.podium_category_id,
-        session_type: sessionType,
-        content_data: contentData,
-        status: 'active',
-        started_at: new Date()
+        podium_category_id: podium_category_id,
+        podium_text_id: topicId,
       }, { transaction });
 
       await transaction.commit();
 
       res.json({
         success: true,
-        message: 'Podium session started successfully',
+        message: 'Podium started successfully',
         data: {
-          session_id: session.session_id,
-          podium_category_id: selectedCategory.podium_category_id,
-          category_name: selectedCategory.podium_category,
-          is_interview: selectedCategory.is_interview,
-          type: sessionType,
-          started_at: session.started_at,
-          ...contentData
+          progress_podium_id: progressPodium.progress_podium_id,
+          podium_category_id: progressPodium.podium_category_id,
+          podium_text_id: progressPodium.podium_text_id,
+          topic: topic,
+          text: text,
+          created_at: progressPodium.created_at
         }
       });
+
     } catch (error) {
       await transaction.rollback();
       res.status(500).json({
@@ -198,6 +161,121 @@ class PodiumController {
       });
     }
   }
+
+  // static async startPodium(req, res) {
+  //   const transaction = await sequelize.transaction();
+
+  //   try {
+  //     const userId = req.user.user_id;
+  //     const { podium_category_id } = req.body;
+
+  //     if (!podium_category_id) {
+  //       await transaction.rollback();
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: 'Category ID is required'
+  //       });
+  //     }
+
+  //     // Check for active session
+  //     const activeSession = await PodiumSession.findOne({
+  //       where: { user_id: userId, status: 'active' }
+  //     });
+
+  //     if (activeSession) {
+  //       await transaction.rollback();
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: 'You have an active session. Please complete or abandon it first.',
+  //         data: {
+  //           session_id: activeSession.session_id,
+  //           started_at: activeSession.started_at
+  //         }
+  //       });
+  //     }
+
+  //     // Get selected category
+  //     const selectedCategory = await PodiumCategory.findByPk(podium_category_id);
+
+  //     if (!selectedCategory) {
+  //       await transaction.rollback();
+  //       return res.status(404).json({
+  //         success: false,
+  //         message: 'Category not found'
+  //       });
+  //     }
+
+  //     const sessionType = selectedCategory.is_interview ? 'interview' : 'speech';
+  //     let contentData = {};
+
+  //     if (selectedCategory.is_interview) {
+  //       const questions = await PodiumInterviewQuestion.findAll({
+  //         where: { podium_category_id: selectedCategory.podium_category_id },
+  //         attributes: ['podium_interview_question_id', 'question'],
+  //         order: sequelize.random(),
+  //         limit: 5
+  //       });
+
+  //       if (questions.length === 0) {
+  //         await transaction.rollback();
+  //         return res.status(404).json({
+  //           success: false,
+  //           message: 'No interview questions available for this category'
+  //         });
+  //       }
+
+  //       contentData = { questions: questions.map(q => q.toJSON()) };
+  //     } else {
+  //       const text = await PodiumText.findOne({
+  //         where: { podium_category_id: selectedCategory.podium_category_id },
+  //         attributes: ['podium_text_id', 'podium_text'],
+  //         order: sequelize.random()
+  //       });
+
+  //       if (!text) {
+  //         await transaction.rollback();
+  //         return res.status(404).json({
+  //           success: false,
+  //           message: 'No podium text available for this category'
+  //         });
+  //       }
+
+  //       contentData = { text: text.toJSON() };
+  //     }
+
+  //     const session = await PodiumSession.create({
+  //       user_id: userId,
+  //       podium_category_id: selectedCategory.podium_category_id,
+  //       session_type: sessionType,
+  //       content_data: contentData,
+  //       status: 'active',
+  //       started_at: new Date()
+  //     }, { transaction });
+
+  //     await transaction.commit();
+
+  //     res.json({
+  //       success: true,
+  //       message: 'Podium session started successfully',
+  //       data: {
+  //         session_id: session.session_id,
+  //         podium_category_id: selectedCategory.podium_category_id,
+  //         category_name: selectedCategory.podium_category,
+  //         is_interview: selectedCategory.is_interview,
+  //         type: sessionType,
+  //         started_at: session.started_at,
+  //         ...contentData
+  //       }
+  //     });
+  //   } catch (error) {
+  //     await transaction.rollback();
+  //     res.status(500).json({
+  //       success: false,
+  //       message: 'Failed to start podium session',
+  //       error: error.message
+  //     });
+  //   }
+  // }
 
   static async submitPodiumResult(req, res) {
     const transaction = await sequelize.transaction();

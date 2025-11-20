@@ -5,34 +5,6 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true
     },
-    self_confidence: {
-      type: DataTypes.FLOAT,
-      allowNull: false,
-      validate: {
-        notEmpty: { msg: 'Self confidence is required' }
-      }
-    },
-    time_management: {
-      type: DataTypes.FLOAT,
-      allowNull: false,
-      validate: {
-        notEmpty: { msg: 'Time management is required' }
-      }
-    },
-    audiens_interest: {
-      type: DataTypes.FLOAT,
-      allowNull: false,
-      validate: {
-        notEmpty: { msg: 'Audience interest is required' }
-      }
-    },
-    sentence_structure: {
-      type: DataTypes.FLOAT,
-      allowNull: false,
-      validate: {
-        notEmpty: { msg: 'Sentence structure is required' }
-      }
-    },
     user_id: {
       type: DataTypes.BIGINT,
       allowNull: false,
@@ -49,6 +21,74 @@ module.exports = (sequelize, DataTypes) => {
         key: 'podium_category_id'
       }
     },
+    podium_text_id: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+      references: {
+        model: 'podium_texts',
+        key: 'podium_text_id'
+      }
+    },
+    point_earned: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    tempo: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    artikulasi: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    kontak_mata: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    kesesuaian_topik: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    struktur: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    jeda: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    first_impression: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    ekspresi: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    gestur: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    kata_pengisi: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    kata_tidak_senonoh: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0,
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -64,10 +104,15 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'user_id',
       as: 'users'
     });
-    
+
     ProgressPodium.belongsTo(models.PodiumCategory, {
       foreignKey: 'podium_category_id',
       as: 'category'
+    });
+
+    ProgressPodium.belongsTo(models.PodiumText, {
+      foreignKey: 'podium_text_id',
+      as: 'text'
     });
   };
 
