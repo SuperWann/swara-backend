@@ -39,6 +39,11 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'podium_category_id', 
       as: 'category'
     });
+
+    PodiumInterviewQuestion.hasMany(models.PodiumInterviewResult, {
+      foreignKey: 'podium_interview_question_id', 
+      as: 'answers'
+    });
   };
 
   return PodiumInterviewQuestion;

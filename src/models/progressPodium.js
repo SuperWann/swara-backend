@@ -5,30 +5,6 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true
     },
-    user_id: {
-      type: DataTypes.BIGINT,
-      allowNull: false,
-      references: {
-        model: 'users',
-        key: 'user_id'
-      }
-    },
-    podium_category_id: {
-      type: DataTypes.BIGINT,
-      allowNull: false,
-      references: {
-        model: 'podium_categories',
-        key: 'podium_category_id'
-      }
-    },
-    podium_text_id: {
-      type: DataTypes.BIGINT,
-      allowNull: false,
-      references: {
-        model: 'podium_texts',
-        key: 'podium_text_id'
-      }
-    },
     point_earned: {
       type: DataTypes.FLOAT,
       allowNull: false,
@@ -93,6 +69,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW
+    },
+    podium_session_id: {
+      type: DataTypes.BIGINT,
+      allowNull: false,
+      unique: true
     }
   }, {
     tableName: 'progress_podium',
@@ -113,6 +94,11 @@ module.exports = (sequelize, DataTypes) => {
     ProgressPodium.belongsTo(models.PodiumText, {
       foreignKey: 'podium_text_id',
       as: 'text'
+    });
+
+    ProgressPodium.belongsTo(models.PodiumSession, {
+      foreignKey: 'podium_session_id',
+      as: 'session'
     });
   };
 

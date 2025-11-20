@@ -137,10 +137,10 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: 'user_id',
       as: 'progressPodium'
     });
-    User.hasMany(models.PodiumSession, {
-      foreignKey: 'user_id',
-      as: 'podiumSession'
-    });
+    // User.hasMany(models.PodiumSession, {
+    //   foreignKey: 'user_id',
+    //   as: 'podiumSession'
+    // });
     User.hasOne(models.MentorProfile, {
       foreignKey: 'user_id',
       as: 'mentorProfile'
