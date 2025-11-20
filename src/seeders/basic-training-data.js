@@ -1,6 +1,7 @@
 const {
   BasicTrainingMode,
   BasicTrainingLevel,
+  BasicTrainingMaterial,
   sequelize,
 } = require("../models");
 
@@ -11,6 +12,7 @@ async function seedBasicTrainingData() {
     console.log("Starting basic training data seeding...");
 
     // Clear existing data
+    await BasicTrainingMaterial.destroy({ where: {}, transaction });
     await BasicTrainingLevel.destroy({ where: {}, transaction });
     await BasicTrainingMode.destroy({ where: {}, transaction });
 
@@ -234,6 +236,93 @@ async function seedBasicTrainingData() {
     );
 
     console.log(`✓ ${tempoLevels.length} Tempo levels created`);
+
+    // Insert materials for some levels as examples
+    const materials = await BasicTrainingMaterial.bulkCreate(
+      [
+        // Materials for Artikulasi Level 1
+        {
+          basic_training_level_id: artikulasiLevels[0].basic_training_level_id,
+          title: "Pengenalan Huruf Vokal A, I, U, E, O",
+          content: "Huruf vokal adalah dasar dari setiap kata. Mari kita pelajari cara melafalkan A, I, U, E, O dengan benar.",
+          content_type: "text",
+          order_index: 1,
+          is_active: true,
+        },
+        {
+          basic_training_level_id: artikulasiLevels[0].basic_training_level_id,
+          title: "Video Tutorial Vokal",
+          content: "Tonton video ini untuk melihat bagaimana posisi mulut saat mengucapkan setiap vokal.",
+          content_type: "video",
+          media_url: "https://example.com/videos/vokal-tutorial.mp4",
+          duration: 180,
+          order_index: 2,
+          is_active: true,
+        },
+        {
+          basic_training_level_id: artikulasiLevels[0].basic_training_level_id,
+          title: "Latihan Vokal Berulang",
+          content: "Ulangi setiap vokal 10 kali dengan jeda 2 detik di antara setiap pengucapan.",
+          content_type: "text",
+          order_index: 3,
+          is_active: true,
+        },
+        // Materials for Artikulasi Level 2
+        {
+          basic_training_level_id: artikulasiLevels[1].basic_training_level_id,
+          title: "Konsonan B, D, G, P, T, K",
+          content: "Konsonan adalah huruf yang memerlukan hambatan udara. Mari pelajari konsonan dasar.",
+          content_type: "text",
+          order_index: 1,
+          is_active: true,
+        },
+        {
+          basic_training_level_id: artikulasiLevels[1].basic_training_level_id,
+          title: "Perbedaan Konsonan Bersuara dan Tidak Bersuara",
+          content: "Pahami perbedaan antara B-P, D-T, G-K untuk artikulasi yang lebih baik.",
+          content_type: "text",
+          order_index: 2,
+          is_active: true,
+        },
+        // Materials for Ekspresi Level 1
+        {
+          basic_training_level_id: ekspresiLevels[0].basic_training_level_id,
+          title: "Anatomi Senyuman",
+          content: "Senyuman yang tulus melibatkan otot di sekitar mata, bukan hanya bibir.",
+          content_type: "text",
+          order_index: 1,
+          is_active: true,
+        },
+        {
+          basic_training_level_id: ekspresiLevels[0].basic_training_level_id,
+          title: "Latihan Senyum di Depan Cermin",
+          content: "Berlatihlah tersenyum di depan cermin selama 5 menit. Perhatikan otot wajah Anda.",
+          content_type: "text",
+          order_index: 2,
+          is_active: true,
+        },
+        // Materials for Tempo Level 1
+        {
+          basic_training_level_id: tempoLevels[0].basic_training_level_id,
+          title: "Mengapa Tempo Penting?",
+          content: "Tempo yang tepat membantu audiens memahami pesan Anda dengan lebih baik.",
+          content_type: "text",
+          order_index: 1,
+          is_active: true,
+        },
+        {
+          basic_training_level_id: tempoLevels[0].basic_training_level_id,
+          title: "Teknik Menghitung Kata Per Menit",
+          content: "Tempo ideal untuk presentasi adalah 120-150 kata per menit. Mari berlatih menghitung kecepatan bicara Anda.",
+          content_type: "text",
+          order_index: 2,
+          is_active: true,
+        },
+      ],
+      { transaction }
+    );
+
+    console.log(`✓ ${materials.length} materials created`);
 
     await transaction.commit();
     console.log("\n✓ Basic training data seeded successfully!");
