@@ -399,23 +399,18 @@ class SkorSwaraController {
       const videoUrl = uploadToCloudinary.secure_url;
       console.log("📤 Video uploaded:", videoUrl);
 
-      const user = await User.findByPk(detailSkorSwara.user_id, {
-        include: [
-          {
-            model: Mentee,
-            as: 'mentee',
-            attributes: ['mentee_id', 'point', 'exercise_count', 'minute_count', 'token_count', 'last_token_reset']
-          }
-        ]
-      });
+      const user = await Mentee.findByPk(userId);
 
-      const point = user.mentee[0]?.point || 0;
+      console.log(user);
+
+      const point = user.point;
+      console.log("point latihan:", point);
 
       if (point <= 200) level = 1;
-      else if (point <= 500) level = 2;
-      else if (point <= 900) level = 3;
-      else if (point <= 1800) level = 4;
-      else if (point <= 6500) level = 5;
+      else if (point > 200 && point <= 500) level = 2;
+      else if (point > 500 && point <= 900) level = 3;
+      else if (point > 900 && point <= 1800) level = 4;
+      else if (point > 1800) level = 5;
 
       console.log("level latihan:", level);
 
