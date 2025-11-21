@@ -553,8 +553,8 @@ class SkorSwaraController {
       // PENILAIAN LEVEL 1 
       if (level === 1) {
 
-        tempo = audioResult.result.tempo.score;
-        artikulasi = audioResult.result.articulation.score;
+        tempo = audioResult.result.tempo.score || 0;
+        artikulasi = audioResult.result.articulation.score || 0;
 
         jeda = audioResult.result.tempo.has_long_pause ? 0 : 1;
         first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : 0;
@@ -567,8 +567,8 @@ class SkorSwaraController {
 
       } else if (level === 2) {
 
-        tempo = audioResult.result.tempo.score;
-        artikulasi = audioResult.result.articulation.score;
+        tempo = audioResult.result.tempo.score || 0;
+        artikulasi = audioResult.result.articulation.score || 0;
         kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 &&
@@ -590,8 +590,8 @@ class SkorSwaraController {
 
       } else if (level === 3) {
 
-        tempo = audioResult.result.tempo.score;
-        artikulasi = audioResult.result.articulation.score;
+        tempo = audioResult.result.tempo.score || 0;
+        artikulasi = audioResult.result.articulation.score || 0;
         kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 &&
@@ -601,7 +601,7 @@ class SkorSwaraController {
               videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 &&
                 videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12 ? 2 :
                 videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12 ? 1 : 0;
-        kesesuaian_topik = audioResult.result.keywords.score || 0;
+        kesesuaian_topik = audioResult.result.keywords?.score || 0;
 
         jeda = audioResult.result.tempo.has_long_pause ? -2 : 1;
         first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -2;
@@ -614,8 +614,8 @@ class SkorSwaraController {
 
       } else if (level === 4) {
 
-        tempo = audioResult.result.tempo.score;
-        artikulasi = audioResult.result.articulation.score;
+        tempo = audioResult.result.tempo.score  || 0;
+        artikulasi = audioResult.result.articulation.score || 0;
         kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 &&
@@ -625,7 +625,7 @@ class SkorSwaraController {
               videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 &&
                 videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12 ? 2 :
                 videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12 ? 1 : 0;
-        kesesuaian_topik = audioResult.result.keywords.score || 0;
+        kesesuaian_topik = audioResult.result.keywords?.score || 0;
 
         jeda = audioResult.result.tempo.has_long_pause ? -2 : 1;
         first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -3;
@@ -649,8 +649,8 @@ class SkorSwaraController {
               videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 &&
                 videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12 ? 2 :
                 videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12 ? 1 : 0;
-        kesesuaian_topik = audioResult.result.keywords.score;
-        struktur = audioResult.result.structure.score || 0;
+        kesesuaian_topik = audioResult.result.keywords?.score || 0;
+        struktur = audioResult.result.structure?.score || 0;
 
         jeda = audioResult.result.tempo.has_long_pause ? -5 : 3;
         first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === 'Happy' ? 1 : -5;
