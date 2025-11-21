@@ -65,15 +65,14 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 0,
     },
-    created_at: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW
-    },
     podium_session_id: {
       type: DataTypes.BIGINT,
       allowNull: false,
       unique: true
+    },
+    video_url: {
+      type: DataTypes.STRING,
+      allowNull: true
     }
   }, {
     tableName: 'progress_podium',
