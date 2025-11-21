@@ -2,6 +2,7 @@ const express = require('express');
 const { body, query } = require('express-validator');
 const PodiumController = require('../controllers/podium');
 const { auth } = require('../middleware/auth');
+const { upload } = require('../config/upload');
 const { validate } = require('../middleware/validator');
 
 const router = express.Router();
@@ -62,7 +63,7 @@ router.get('/categories/:id', PodiumController.getCategoryDetail);
 router.post('/start-pidato', PodiumController.startPidatoPodium);
 
 // Submit podium result
-router.post('/submit', submitResultValidation, validate, PodiumController.submitPodiumResult);
+router.post('/submit-pidato', upload.single('video'), PodiumController.submitHasilPidatoPodium);
 
 // Get user's progress history
 router.get('/progress', paginationValidation, validate, PodiumController.getProgress);

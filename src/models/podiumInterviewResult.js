@@ -63,6 +63,10 @@ module.exports = (sequelize, DataTypes) => {
     point_earned: {
       type: DataTypes.FLOAT,
       allowNull: false
+    },
+    video_url:{
+      type: DataTypes.TEXT,
+      allowNull: true
     }
   }, {
     tableName: 'podium_interview_results',
