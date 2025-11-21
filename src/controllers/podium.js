@@ -731,9 +731,29 @@ class PodiumController {
       const { page = 1, limit = 20 } = req.query;
       const offset = (page - 1) * limit;
 
-      const { count, rows: progressList } = await ProgressPodium.findAndCountAll({
+      const { count, rows: progressList } = await PodiumSession.findAndCountAll({
         where: { user_id: userId },
-        include: [{ model: PodiumCategory, as: 'category', attributes: ['podium_category_id', 'podium_category', 'is_interview'] }],
+        include: [
+          {
+            model: ProgressPodium,
+            as: 'progress',
+            attributes: [
+              'progress_podium_id',
+              'tempo',
+              'artikulasi',
+              'kontak_mata',
+              'kesesuaian_topik',
+              'struktur',
+              'jeda',
+              'first_impression',
+              'ekspresi',
+              'gestur',
+              'kata_pengisi',
+              'kata_tidak_senonoh',
+              'point_earned'
+            ]
+          }
+        ],
         limit: parseInt(limit),
         offset: parseInt(offset),
         order: [['created_at', 'DESC']],
@@ -742,31 +762,81 @@ class PodiumController {
 
       let stats = {
         total_sessions: count,
-        average_scores: { self_confidence: 0, time_management: 0, audiens_interest: 0, sentence_structure: 0, overall: 0 }
+        average_scores: {
+          tempo: 0,
+          artikulasi: 0,
+          kontak_mata: 0,
+          kesesuaian_topik: 0,
+          struktur: 0,
+          jeda: 0,
+          first_impression: 0,
+          ekspresi: 0,
+          gestur: 0,
+          kata_pengisi: 0,
+          kata_tidak_senonoh: 0,
+          overall: 0,
+          total_points: 0
+        }
       };
 
       if (count > 0) {
-        const allProgress = await ProgressPodium.findAll({
-          where: { user_id: userId },
+        const result = await ProgressPodium.findOne({
+          include: [
+            {
+              model: PodiumSession,
+              as: "session",
+              where: { user_id: userId },
+              attributes: []
+            }
+          ],
           attributes: [
-            [sequelize.fn('AVG', sequelize.col('self_confidence')), 'avg_confidence'],
-            [sequelize.fn('AVG', sequelize.col('time_management')), 'avg_time'],
-            [sequelize.fn('AVG', sequelize.col('audiens_interest')), 'avg_interest'],
-            [sequelize.fn('AVG', sequelize.col('sentence_structure')), 'avg_structure']
+            [sequelize.fn('AVG', sequelize.col('tempo')), 'avg_tempo'],
+            [sequelize.fn('AVG', sequelize.col('artikulasi')), 'avg_artikulasi'],
+            [sequelize.fn('AVG', sequelize.col('kontak_mata')), 'avg_kontak_mata'],
+            [sequelize.fn('AVG', sequelize.col('kesesuaian_topik')), 'avg_kesesuaian_topik'],
+            [sequelize.fn('AVG', sequelize.col('struktur')), 'avg_struktur'],
+            [sequelize.fn('AVG', sequelize.col('jeda')), 'avg_jeda'],
+            [sequelize.fn('AVG', sequelize.col('first_impression')), 'avg_first_impression'],
+            [sequelize.fn('AVG', sequelize.col('ekspresi')), 'avg_ekspresi'],
+            [sequelize.fn('AVG', sequelize.col('gestur')), 'avg_gestur'],
+            [sequelize.fn('AVG', sequelize.col('kata_pengisi')), 'avg_kata_pengisi'],
+            [sequelize.fn('AVG', sequelize.col('kata_tidak_senonoh')), 'avg_kata_tidak_senonoh'],
+            [sequelize.fn('SUM', sequelize.col('point_earned')), 'total_points']
           ],
           raw: true
         });
 
-        if (allProgress[0]) {
+        if (result) {
           stats.average_scores = {
-            self_confidence: parseFloat(allProgress[0].avg_confidence || 0).toFixed(2),
-            time_management: parseFloat(allProgress[0].avg_time || 0).toFixed(2),
-            audiens_interest: parseFloat(allProgress[0].avg_interest || 0).toFixed(2),
-            sentence_structure: parseFloat(allProgress[0].avg_structure || 0).toFixed(2)
+            tempo: Number(result.avg_tempo || 0).toFixed(2),
+            artikulasi: Number(result.avg_artikulasi || 0).toFixed(2),
+            kontak_mata: Number(result.avg_kontak_mata || 0).toFixed(2),
+            kesesuaian_topik: Number(result.avg_kesesuaian_topik || 0).toFixed(2),
+            struktur: Number(result.avg_struktur || 0).toFixed(2),
+            jeda: Number(result.avg_jeda || 0).toFixed(2),
+            first_impression: Number(result.avg_first_impression || 0).toFixed(2),
+            ekspresi: Number(result.avg_ekspresi || 0).toFixed(2),
+            gestur: Number(result.avg_gestur || 0).toFixed(2),
+            kata_pengisi: Number(result.avg_kata_pengisi || 0).toFixed(2),
+            kata_tidak_senonoh: Number(result.avg_kata_tidak_senonoh || 0).toFixed(2),
+            total_points: Number(result.total_points || 0),
+            overall: Number(
+              (
+                (Number(result.avg_tempo || 0) +
+                  Number(result.avg_artikulasi || 0) +
+                  Number(result.avg_kontak_mata || 0) +
+                  Number(result.avg_kesesuaian_topik || 0) +
+                  Number(result.avg_struktur || 0) +
+                  Number(result.avg_jeda || 0) +
+                  Number(result.avg_first_impression || 0) +
+                  Number(result.avg_ekspresi || 0) +
+                  Number(result.avg_gestur || 0) +
+                  Number(result.avg_kata_pengisi || 0) +
+                  Number(result.avg_kata_tidak_senonoh || 0))
+                / 11
+              ).toFixed(2)
+            )
           };
-
-          const overall = (parseFloat(stats.average_scores.self_confidence) + parseFloat(stats.average_scores.time_management) + parseFloat(stats.average_scores.audiens_interest) + parseFloat(stats.average_scores.sentence_structure)) / 4;
-          stats.average_scores.overall = parseFloat(overall.toFixed(2));
         }
       }
 
@@ -776,9 +846,15 @@ class PodiumController {
         data: {
           statistics: stats,
           progress: progressList,
-          pagination: { total: count, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(count / limit) }
+          pagination: {
+            total: count,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            totalPages: Math.ceil(count / limit)
+          }
         }
       });
+
     } catch (error) {
       res.status(500).json({
         success: false,
