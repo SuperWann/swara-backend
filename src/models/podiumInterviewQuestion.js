@@ -12,7 +12,7 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: { msg: 'Question is required' }
       }
     },
-    answer: {
+    keywords: {
       type: DataTypes.TEXT,
       allowNull: true,
     },
