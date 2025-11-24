@@ -399,7 +399,11 @@ class SkorSwaraController {
       const videoUrl = uploadToCloudinary.secure_url;
       console.log("📤 Video uploaded:", videoUrl);
 
-      const user = await Mentee.findByPk(userId);
+      const user = await Mentee.findOne({
+        where: {
+          user_id: userId
+        }
+      });
 
       console.log(user);
 
@@ -533,6 +537,25 @@ class SkorSwaraController {
 
       console.log("✅ Both analyses completed successfully");
 
+      let suggestions = null;
+
+      try {
+        suggestions = await chatgptService.generateSuggestions(videoResult, audioResult, level);
+
+        // if (!chatgptService.validateKeywords(customKeyword)) {
+        //   throw new Error("Generated keywords are invalid");
+        // }
+        console.log(suggestions);
+
+      } catch (aiError) {
+        // await transaction.rollback();
+        return res.status(500).json({
+          success: false,
+          message: "Failed to generate suggestions",
+          error: aiError.message,
+        });
+      }
+
       // ========================================
       // SCORING LOGIC
       // ========================================
@@ -614,7 +637,7 @@ class SkorSwaraController {
 
       } else if (level === 4) {
 
-        tempo = audioResult.result.tempo.score  || 0;
+        tempo = audioResult.result.tempo.score || 0;
         artikulasi = audioResult.result.articulation.score || 0;
         kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
@@ -695,13 +718,18 @@ class SkorSwaraController {
           kata_tidak_senonoh,
           status: "complete",
           video_result: videoUrl,
+          result_ai: JSON.stringify(suggestions)
         },
         {
           where: { skor_swara_id: skor_swara_id }
         }
       );
 
-      const updatedData = await SkorSwara.findByPk(skor_swara_id);
+      const updatedData = await SkorSwara.findByPk(skor_swara_id, {
+        attributes: {
+          exclude: ['result_ai']
+        }
+      });
 
       await Mentee.update({
         point: sequelize.literal(`point + ${pointEarned}`),
@@ -713,7 +741,10 @@ class SkorSwaraController {
       res.json({
         success: true,
         message: "Video and audio processed successfully",
-        data: updatedData,
+        data: {
+          updatedData: updatedData,
+          suggestions: suggestions
+        },
       });
 
     } catch (error) {

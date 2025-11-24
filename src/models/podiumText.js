@@ -30,7 +30,7 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   PodiumText.associate = function (models) {
-    PodiumText.hasMany(models.ProgressPodium, { foreignKey: 'podium_text_id' });
+    PodiumText.hasMany(models.PodiumSession, { foreignKey: 'podium_text_id' });
   };
 
   return PodiumText;

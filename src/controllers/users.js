@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { User, Role, Gender, Mentee, Badge, School } = require('../models');
+const { User, Role, Gender, Mentee, Badge, School, ProgressPodium, Match, PodiumSession, MatchResult, SkorSwara } = require('../models');
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -35,9 +35,9 @@ class UserController {
 
       if (school_token) {
         const school = await School.findOne({
-          where: { 
+          where: {
             access_token: school_token,
-            is_active: true 
+            is_active: true
           }
         });
 
@@ -137,60 +137,6 @@ class UserController {
     }
   }
 
-
-  // Login
-  // static async login(req, res) {
-  //   try {
-  //     const { email, password } = req.body;
-
-  //     // Find user
-  //     const user = await User.scope('withPassword').findOne({
-  //       where: { email },
-  //       include: [
-  //         { model: Role, as: 'role', attributes: ['role_id', 'role_name'] },
-  //         { model: Gender, as: 'gender', attributes: ['gender_id', 'gender'] }
-  //       ]
-  //     });
-
-  //     if (!user) {
-  //       return res.status(401).json({
-  //         success: false,
-  //         message: 'Invalid email or password'
-  //       });
-  //     }
-
-  //     // Compare password
-  //     const isPasswordValid = await user.comparePassword(password);
-  //     if (!isPasswordValid) {
-  //       return res.status(401).json({
-  //         success: false,
-  //         message: 'Invalid email or password'
-  //       });
-  //     }
-
-  //     // Generate token
-  //     const token = jwt.sign(
-  //       { user_id: user.user_id },
-  //       process.env.JWT_SECRET,
-  //       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-  //     );
-
-  //     res.json({
-  //       success: true,
-  //       message: 'Login successful',
-  //       data: {
-  //         user: user.toJSON(),
-  //         token
-  //       }
-  //     });
-  //   } catch (error) {
-  //     res.status(500).json({
-  //       success: false,
-  //       message: 'Login failed',
-  //       error: error.message
-  //     });
-  //   }
-  // }
   static async login(req, res) {
     try {
       const { email, password, school_token } = req.body;
@@ -205,9 +151,9 @@ class UserController {
 
       if (school_token) {
         const school = await School.findOne({
-          where: { 
+          where: {
             access_token: school_token,
-            is_active: true 
+            is_active: true
           }
         });
 
@@ -261,7 +207,7 @@ class UserController {
         const school = await School.findOne({
           where: { access_token: school_token }
         });
-        
+
         if (school && user.school_id !== school.school_id) {
           return res.status(401).json({
             success: false,
@@ -327,24 +273,90 @@ class UserController {
     }
   }
 
-  // Logout
-  // static async logout(req, res) {
-  //   try {
-  //     // Dalam JWT stateless, logout dilakukan di client side dengan menghapus token
-  //     // Bisa tambahkan blacklist token jika diperlukan
+  static async getTrainingHistory(req, res) {
+    try {
+      const userId = req.user.user_id;
 
-  //     res.json({
-  //       success: true,
-  //       message: 'Logout successful'
-  //     });
-  //   } catch (error) {
-  //     res.status(500).json({
-  //       success: false,
-  //       message: 'Logout failed',
-  //       error: error.message
-  //     });
-  //   }
-  // }
+      // Run DB queries in parallel
+      const [podiumData, matchData, skorData] = await Promise.all([
+        ProgressPodium.findAll({
+          limit: 5,
+          attributes: { exclude: ["video_url"] },
+          include: [
+            {
+              model: PodiumSession,
+              as: "session",
+              where: { user_id: userId },
+              attributes: ["podium_session_id", "user_id", "created_at"]
+            }
+          ]
+        }),
+
+        MatchResult.findAll({
+          where: { user_id: userId },
+          limit: 5,
+          include: [
+            {
+              model: Match,
+              as: "match",
+              attributes: ["match_id", "created_at", "adu_swara_topic_id", "meeting_url"]
+            }
+          ]
+        }),
+
+        SkorSwara.findAll({
+          where: { user_id: userId },
+          limit: 5,
+          order: [["updated_at", "DESC"]],
+          attributes: { exclude: ["result_ai"] }
+        })
+      ]);
+
+
+      // Normalize and unify structure for sorting
+      let history = [
+        ...podiumData.map(item => ({
+          type: "podium",
+          ...item.toJSON(),
+          sortDate: item.session?.created_at ?? item.created_at
+        })),
+
+        ...matchData.map(item => ({
+          type: "match",
+          ...item.toJSON(),
+          sortDate: item.match?.created_at ?? item.created_at
+        })),
+
+        ...skorData.map(item => ({
+          type: "skorSwara",
+          ...item.toJSON(),
+          sortDate: item.updated_at ?? item.created_at
+        })),
+      ];
+
+      // Sort by newest date
+      history.sort((a, b) => new Date(b.sortDate) - new Date(a.sortDate));
+
+      // Cleanup: remove sortDate and limit final output to 5 items
+      history = history.slice(0, 5).map(({ sortDate, ...rest }) => rest);
+
+      return res.json({
+        success: true,
+        count: history.length,
+        data: history
+      });
+
+    } catch (error) {
+      console.error("Training history error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to fetch training history",
+        error: error.message
+      });
+    }
+  }
+
+
   static async logout(req, res) {
     try {
       const userId = req.user.user_id;

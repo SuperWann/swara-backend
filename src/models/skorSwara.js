@@ -128,6 +128,10 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: DataTypes.NOW,
         field: 'updated_at', // Mapping ke kolom database
       },
+      result_ai: {
+        type: DataTypes.TEXT('long'),
+        allowNull: false
+      }
     },
     {
       tableName: "skor_swara",

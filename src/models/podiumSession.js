@@ -23,7 +23,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     podium_text_id: {
       type: DataTypes.BIGINT,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: 'podium_texts',
         key: 'podium_text_id'

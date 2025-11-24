@@ -80,20 +80,11 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   ProgressPodium.associate = (models) => {
-    ProgressPodium.belongsTo(models.User, {
-      foreignKey: 'user_id',
-      as: 'users'
-    });
 
-    ProgressPodium.belongsTo(models.PodiumCategory, {
-      foreignKey: 'podium_category_id',
-      as: 'category'
-    });
-
-    ProgressPodium.belongsTo(models.PodiumText, {
-      foreignKey: 'podium_text_id',
-      as: 'text'
-    });
+    // ProgressPodium.belongsTo(models.PodiumCategory, {
+    //   foreignKey: 'podium_category_id',
+    //   as: 'category'
+    // });
 
     ProgressPodium.belongsTo(models.PodiumSession, {
       foreignKey: 'podium_session_id',

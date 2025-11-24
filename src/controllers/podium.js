@@ -734,24 +734,34 @@ class PodiumController {
       const { count, rows: progressList } = await PodiumSession.findAndCountAll({
         where: { user_id: userId },
         include: [
+          // {
+          //   model: ProgressPodium,
+          //   as: 'progress',
+          //   attributes: [
+          //     'progress_podium_id',
+          //     'tempo',
+          //     'artikulasi',
+          //     'kontak_mata',
+          //     'kesesuaian_topik',
+          //     'struktur',
+          //     'jeda',
+          //     'first_impression',
+          //     'ekspresi',
+          //     'gestur',
+          //     'kata_pengisi',
+          //     'kata_tidak_senonoh',
+          //     'point_earned'
+          //   ]
+          // },
           {
-            model: ProgressPodium,
-            as: 'progress',
-            attributes: [
-              'progress_podium_id',
-              'tempo',
-              'artikulasi',
-              'kontak_mata',
-              'kesesuaian_topik',
-              'struktur',
-              'jeda',
-              'first_impression',
-              'ekspresi',
-              'gestur',
-              'kata_pengisi',
-              'kata_tidak_senonoh',
-              'point_earned'
-            ]
+            model: PodiumCategory,
+            as: 'podium_category',
+            attributes: ['podium_category_id', 'podium_category']
+          },
+          {
+            model: PodiumText,
+            as: 'podium_text',
+            attributes: ['podium_text_id', 'topic', 'text']
           }
         ],
         limit: parseInt(limit),
@@ -869,9 +879,13 @@ class PodiumController {
       const { id } = req.params;
       const userId = req.user.user_id;
 
-      const progress = await ProgressPodium.findOne({
-        where: { progress_podium_id: id, user_id: userId },
-        include: [{ model: PodiumCategory, as: 'category', attributes: ['podium_category_id', 'podium_category', 'is_interview'] }]
+      const progress = await PodiumSession.findOne({
+        where: { podium_session_id: id, user_id: userId },
+        include: [
+          { model: PodiumCategory, as: 'podium_category', attributes: ['podium_category_id', 'podium_category'] },
+          { model: PodiumText, as: 'podium_text', attributes: ['podium_text_id', 'topic', 'text'] },
+          { model: ProgressPodium, as: 'progress', attributes: ['tempo', 'point_earned', 'artikulasi', 'kontak_mata', 'kesesuaian_topik', 'struktur', 'jeda', 'first_impression', 'ekspresi', 'gestur', 'kata_pengisi', 'kata_tidak_senonoh'] }
+        ]
       });
 
       if (!progress) {
@@ -881,27 +895,12 @@ class PodiumController {
         });
       }
 
-      const session = await PodiumSession.findOne({
-        where: { progress_id: id },
-        attributes: ['session_id', 'started_at', 'completed_at', 'content_data']
-      });
-
-      const averageScore = (progress.self_confidence + progress.time_management + progress.audiens_interest + progress.sentence_structure) / 4;
-      let practiceDuration = null;
-      if (session && session.completed_at) {
-        practiceDuration = Math.round((new Date(session.completed_at) - new Date(session.started_at)) / 1000 / 60);
-      }
-
       res.json({
         success: true,
-        message: 'Progress detail retrieved successfully',
-        data: {
-          ...progress.toJSON(),
-          average_score: parseFloat(averageScore.toFixed(2)),
-          practice_duration_minutes: practiceDuration,
-          session_data: session ? { session_id: session.session_id, started_at: session.started_at, completed_at: session.completed_at, content_data: session.content_data } : null
-        }
+        message: 'Progress detail retrieved successfully, anjazz',
+        data: progress
       });
+
     } catch (error) {
       res.status(500).json({
         success: false,

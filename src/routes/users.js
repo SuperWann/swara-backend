@@ -84,5 +84,6 @@ router.put('/profile', uploadImage.single('image'), authenticateToken, updatePro
 router.put('/change-password', authenticateToken, changePasswordValidation, validate, UserController.changePassword);
 router.delete('/account', authenticateToken, deleteAccountValidation, validate, UserController.deleteAccount);
 router.get('/badges', authenticateToken, UserController.getUserBadges);
+router.get('/riwayat-latihan', authenticateToken, UserController.getTrainingHistory);
 
 module.exports = router;
