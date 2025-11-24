@@ -23,7 +23,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     podium_text_id: {
       type: DataTypes.BIGINT,
-      allowNull: true,
+      allowNull: false,
       references: {
         model: 'podium_texts',
         key: 'podium_text_id'
@@ -40,20 +40,20 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   PodiumSession.associate = function (models) {
-    PodiumSession.belongsTo(models.User, { foreignKey: 'user_id', as: 'user' });
-    PodiumSession.belongsTo(models.PodiumCategory, { foreignKey: 'podium_category_id', as: 'podium_category' });
-    PodiumSession.belongsTo(models.PodiumText, { foreignKey: 'podium_text_id', as: 'podium_text' });
+    PodiumSession.belongsTo(models.User, { foreignKey: "user_id", as: "user" });
+    PodiumSession.belongsTo(models.PodiumCategory, { foreignKey: "podium_category_id", as: "podium_category" });
+    PodiumSession.belongsTo(models.PodiumText, { foreignKey: "podium_text_id", as: "podium_text" });
 
     // One-to-One
     PodiumSession.hasOne(models.ProgressPodium, {
-      foreignKey: 'podium_session_id',
-      as: 'progress'
+      foreignKey: "podium_session_id",
+      as: "progress",
     });
 
     PodiumSession.hasMany(models.PodiumInterviewResult, {
-      foreignKey: 'podium_session_id',
-      as: 'interview_results'
-    })
+      foreignKey: "podium_session_id",
+      as: "interview_results",
+    });
   };
 
   return PodiumSession;
