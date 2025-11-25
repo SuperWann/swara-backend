@@ -73,6 +73,10 @@ module.exports = (sequelize, DataTypes) => {
     video_url: {
       type: DataTypes.STRING,
       allowNull: true
+    },
+    result_ai: {
+      type: DataTypes.TEXT('long'),
+      allowNull: true
     }
   }, {
     tableName: 'progress_podium',

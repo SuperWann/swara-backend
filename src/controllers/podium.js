@@ -2,6 +2,7 @@ const { PodiumCategory, PodiumText, PodiumInterviewQuestion, PodiumInterviewResu
 const cloudinary = require("cloudinary").v2;
 const AudioExtractor = require("../utils/audioExtractor");
 const fs = require("fs");
+const chatgptService = require("../services/chatgptService");
 const axios = require("axios");
 const FormData = require("form-data");
 const { Op } = require("sequelize");
@@ -297,8 +298,8 @@ class PodiumController {
           contentType: "audio/wav",
         });
 
-        audioData.append("custom_topic", podiumSession.podium_text.topic || "");
-        audioData.append("reference_text", podiumSession.podium_text.text || "");
+        audioData.append("custom_topic", podiumSession.podium_text.topic);
+        audioData.append("reference_text", podiumSession.podium_text.text);
 
         const uploadAudioResponse = await axios.post("https://cyberlace-api-swara-audio-analysis.hf.space/api/v1/analyze", audioData, {
           headers: { ...audioData.getHeaders() },
@@ -314,6 +315,19 @@ class PodiumController {
       const [videoResult, audioResult] = await Promise.all([analyzeVideo(), analyzeAudio()]);
 
       console.log("✅ Both analyses completed successfully");
+
+      let suggestions = null;
+
+      try {
+        suggestions = await chatgptService.generateSuggestions(videoResult, audioResult, level);
+        console.log(suggestions);
+      } catch (aiError) {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to generate suggestions",
+          error: aiError.message,
+        });
+      }
 
       // ========================================
       // SCORING LOGIC
@@ -350,14 +364,14 @@ class PodiumController {
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5
             ? 5
             : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8
-            ? 4
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10
-            ? 3
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12
-            ? 2
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12
-            ? 1
-            : 0;
+              ? 4
+              : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10
+                ? 3
+                : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12
+                  ? 2
+                  : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12
+                    ? 1
+                    : 0;
 
         jeda = audioResult.result.tempo.has_long_pause ? -1 : 1;
         first_impression = videoResult.result.analysis_results.facial_expression.first_impression.expression === "Happy" ? 1 : -1;
@@ -372,14 +386,14 @@ class PodiumController {
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5
             ? 5
             : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8
-            ? 4
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10
-            ? 3
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12
-            ? 2
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12
-            ? 1
-            : 0;
+              ? 4
+              : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10
+                ? 3
+                : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12
+                  ? 2
+                  : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12
+                    ? 1
+                    : 0;
         kesesuaian_topik = audioResult.result.keywords?.score || 0;
 
         jeda = audioResult.result.tempo.has_long_pause ? -2 : 1;
@@ -395,14 +409,14 @@ class PodiumController {
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5
             ? 5
             : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8
-            ? 4
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10
-            ? 3
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12
-            ? 2
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12
-            ? 1
-            : 0;
+              ? 4
+              : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10
+                ? 3
+                : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12
+                  ? 2
+                  : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12
+                    ? 1
+                    : 0;
         kesesuaian_topik = audioResult.result.keywords?.score || 0;
 
         jeda = audioResult.result.tempo.has_long_pause ? -2 : 1;
@@ -418,14 +432,14 @@ class PodiumController {
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5
             ? 5
             : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8
-            ? 4
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10
-            ? 3
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12
-            ? 2
-            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12
-            ? 1
-            : 0;
+              ? 4
+              : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10
+                ? 3
+                : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12
+                  ? 2
+                  : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12
+                    ? 1
+                    : 0;
         kesesuaian_topik = audioResult.result.keywords?.score || 0;
         struktur = audioResult.result.structure?.score || 0;
 
@@ -437,10 +451,9 @@ class PodiumController {
         kata_tidak_senonoh = audioResult.result.profanity.has_profanity ? -5 : 0;
       }
 
-      // Hitung total point earned
       const pointEarned = tempo + artikulasi + kontak_mata + kesesuaian_topik + struktur + jeda + first_impression + ekspresi + gestur + kata_pengisi + kata_tidak_senonoh;
 
-      const progressPodium = await ProgressPodium.create({
+      await ProgressPodium.create({
         podium_session_id: podiumSession.podium_session_id,
         point_earned: pointEarned,
         tempo,
@@ -455,6 +468,7 @@ class PodiumController {
         kata_pengisi,
         kata_tidak_senonoh,
         video_url: videoUrl,
+        result_ai: JSON.stringify(suggestions)
       });
 
       await Mentee.update(
@@ -466,12 +480,21 @@ class PodiumController {
         }
       );
 
+      const newProgressPodium = await ProgressPodium.findOne({
+        where: { podium_session_id: podiumSession.podium_session_id },
+        order: [['progress_podium_id', 'DESC']],
+        attributes: {
+          exclude: ['result_ai']
+        }
+      });
+
       res.json({
         success: true,
         message: "Hasil podium session submitted successfully",
-        data: progressPodium,
+        data: newProgressPodium,
       });
     } catch (error) {
+      console.log(error.errors);
       res.status(500).json({
         success: false,
         message: "Failed to submit hasil podium session",
@@ -479,209 +502,6 @@ class PodiumController {
       });
     }
   }
-
-  // static async startPodium(req, res) {
-  //   const transaction = await sequelize.transaction();
-
-  //   try {
-  //     const userId = req.user.user_id;
-  //     const { podium_category_id } = req.body;
-
-  //     if (!podium_category_id) {
-  //       await transaction.rollback();
-  //       return res.status(400).json({
-  //         success: false,
-  //         message: 'Category ID is required'
-  //       });
-  //     }
-
-  //     // Check for active session
-  //     const activeSession = await PodiumSession.findOne({
-  //       where: { user_id: userId, status: 'active' }
-  //     });
-
-  //     if (activeSession) {
-  //       await transaction.rollback();
-  //       return res.status(400).json({
-  //         success: false,
-  //         message: 'You have an active session. Please complete or abandon it first.',
-  //         data: {
-  //           session_id: activeSession.session_id,
-  //           started_at: activeSession.started_at
-  //         }
-  //       });
-  //     }
-
-  //     // Get selected category
-  //     const selectedCategory = await PodiumCategory.findByPk(podium_category_id);
-
-  //     if (!selectedCategory) {
-  //       await transaction.rollback();
-  //       return res.status(404).json({
-  //         success: false,
-  //         message: 'Category not found'
-  //       });
-  //     }
-
-  //     const sessionType = selectedCategory.is_interview ? 'interview' : 'speech';
-  //     let contentData = {};
-
-  //     if (selectedCategory.is_interview) {
-  //       const questions = await PodiumInterviewQuestion.findAll({
-  //         where: { podium_category_id: selectedCategory.podium_category_id },
-  //         attributes: ['podium_interview_question_id', 'question'],
-  //         order: sequelize.random(),
-  //         limit: 5
-  //       });
-
-  //       if (questions.length === 0) {
-  //         await transaction.rollback();
-  //         return res.status(404).json({
-  //           success: false,
-  //           message: 'No interview questions available for this category'
-  //         });
-  //       }
-
-  //       contentData = { questions: questions.map(q => q.toJSON()) };
-  //     } else {
-  //       const text = await PodiumText.findOne({
-  //         where: { podium_category_id: selectedCategory.podium_category_id },
-  //         attributes: ['podium_text_id', 'podium_text'],
-  //         order: sequelize.random()
-  //       });
-
-  //       if (!text) {
-  //         await transaction.rollback();
-  //         return res.status(404).json({
-  //           success: false,
-  //           message: 'No podium text available for this category'
-  //         });
-  //       }
-
-  //       contentData = { text: text.toJSON() };
-  //     }
-
-  //     const session = await PodiumSession.create({
-  //       user_id: userId,
-  //       podium_category_id: selectedCategory.podium_category_id,
-  //       session_type: sessionType,
-  //       content_data: contentData,
-  //       status: 'active',
-  //       started_at: new Date()
-  //     }, { transaction });
-
-  //     await transaction.commit();
-
-  //     res.json({
-  //       success: true,
-  //       message: 'Podium session started successfully',
-  //       data: {
-  //         session_id: session.session_id,
-  //         podium_category_id: selectedCategory.podium_category_id,
-  //         category_name: selectedCategory.podium_category,
-  //         is_interview: selectedCategory.is_interview,
-  //         type: sessionType,
-  //         started_at: session.started_at,
-  //         ...contentData
-  //       }
-  //     });
-  //   } catch (error) {
-  //     await transaction.rollback();
-  //     res.status(500).json({
-  //       success: false,
-  //       message: 'Failed to start podium session',
-  //       error: error.message
-  //     });
-  //   }
-  // }
-
-  // static async submitPodiumResult(req, res) {
-  //   const transaction = await sequelize.transaction();
-  //   try {
-  //     const userId = req.user.user_id;
-  //     const { session_id, self_confidence, time_management, audiens_interest, sentence_structure } = req.body;
-
-  //     const session = await PodiumSession.findOne({
-  //       where: { session_id, user_id: userId, status: 'active' },
-  //       include: [{ model: PodiumCategory, as: 'category', attributes: ['podium_category_id', 'podium_category'] }]
-  //     });
-
-  //     if (!session) {
-  //       await transaction.rollback();
-  //       return res.status(404).json({
-  //         success: false,
-  //         message: 'Invalid or expired session. Please start a new session.'
-  //       });
-  //     }
-
-  //     const sessionAge = (new Date() - new Date(session.started_at)) / 1000 / 60;
-  //     if (sessionAge > 60) {
-  //       await transaction.rollback();
-  //       return res.status(400).json({
-  //         success: false,
-  //         message: 'Session has expired. Please start a new session.',
-  //         data: { session_age_minutes: Math.round(sessionAge) }
-  //       });
-  //     }
-
-  //     const scores = [self_confidence, time_management, audiens_interest, sentence_structure];
-  //     if (!scores.every(score => typeof score === 'number' && score >= 0 && score <= 100)) {
-  //       await transaction.rollback();
-  //       return res.status(400).json({
-  //         success: false,
-  //         message: 'All scores must be numbers between 0 and 100'
-  //       });
-  //     }
-
-  //     const progress = await ProgressPodium.create({
-  //       user_id: userId,
-  //       podium_category_id: session.podium_category_id,
-  //       self_confidence,
-  //       time_management,
-  //       audiens_interest,
-  //       sentence_structure,
-  //       created_at: new Date()
-  //     }, { transaction });
-
-  //     await session.update({
-  //       status: 'completed',
-  //       completed_at: new Date(),
-  //       progress_id: progress.progress_podium_id
-  //     }, { transaction });
-
-  //     await transaction.commit();
-
-  //     const averageScore = (self_confidence + time_management + audiens_interest + sentence_structure) / 4;
-  //     const practiceDuration = Math.round((new Date(session.completed_at) - new Date(session.started_at)) / 1000 / 60);
-
-  //     res.json({
-  //       success: true,
-  //       message: 'Podium result submitted successfully',
-  //       data: {
-  //         progress_id: progress.progress_podium_id,
-  //         session_id: session.session_id,
-  //         category: session.category.podium_category,
-  //         scores: {
-  //           self_confidence,
-  //           time_management,
-  //           audiens_interest,
-  //           sentence_structure,
-  //           average: parseFloat(averageScore.toFixed(2))
-  //         },
-  //         practice_duration_minutes: practiceDuration,
-  //         started_at: session.started_at,
-  //         completed_at: session.completed_at
-  //       }
-  //     });
-  //   } catch (error) {
-  //     await transaction.rollback();
-  //     res.status(500).json({
-  //       success: false,
-  //       message: 'Failed to submit podium result',
-  //       error: error.message
-  //     });
-  //   }
-  // }
 
   static async getProgress(req, res) {
     try {
@@ -1217,14 +1037,14 @@ class PodiumController {
         videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5
           ? 5
           : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 5 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 8
-          ? 4
-          : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10
-          ? 3
-          : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12
-          ? 2
-          : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12
-          ? 1
-          : 0;
+            ? 4
+            : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 8 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 10
+              ? 3
+              : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 10 && videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 12
+                ? 2
+                : videoResult.result.analysis_results.eye_contact.summary.gaze_away_time > 12
+                  ? 1
+                  : 0;
 
       const kesesuaian_topik = audioResult.result.keywords?.score || 0;
       const struktur = audioResult.result.structure?.score || 0;

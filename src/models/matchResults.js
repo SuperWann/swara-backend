@@ -84,6 +84,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 0,
     },
+    result_ai: {
+      type: DataTypes.TEXT('long'),
+      allowNull: false
+    }
   }, {
     tableName: 'match_results',
     timestamps: false
