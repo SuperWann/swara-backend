@@ -9,30 +9,41 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// Configure multer storage for Cloudinary
 const videoStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'swara-videos',
-    resource_type: 'video',
-    allowed_formats: ['mp4', 'mpeg', 'mov', 'avi', 'webm'],
+    resource_type: 'auto',
+    allowed_formats: ['mp4', 'mpeg', 'mov', 'avi', 'webm', 'mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'],
     transformation: [{ quality: 'auto' }]
   }
 });
 
 const videoFileFilter = (req, file, cb) => {
   const allowedMimes = [
+    // Video formats
     'video/mp4',
     'video/mpeg',
     'video/quicktime',
     'video/x-msvideo',
-    'video/webm'
+    'video/webm',
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/wav',
+    'audio/wave',
+    'audio/x-wav',
+    'audio/mp4',
+    'audio/x-m4a',
+    'audio/aac',
+    'audio/ogg',
+    'audio/webm',
+    'audio/flac'
   ];
 
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only video files are allowed (mp4, mpeg, mov, avi, webm)'), false);
+    cb(new Error('Invalid file type. Only video and audio files are allowed (mp4, mpeg, mov, avi, webm, mp3, wav, m4a, aac, ogg, flac)'), false);
   }
 };
 

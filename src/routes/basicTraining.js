@@ -38,6 +38,27 @@ const paginationValidation = [
     .withMessage("Mode ID must be a valid number"),
 ];
 
+const artikulasiAssessmentValidation = [
+  body("basic_training_session_id")
+    .notEmpty()
+    .withMessage("Session ID is required")
+    .isInt({ min: 1 })
+    .withMessage("Session ID must be a valid number"),
+  body("basic_training_material_id")
+    .notEmpty()
+    .withMessage("Material ID is required")
+    .isInt({ min: 1 })
+    .withMessage("Material ID must be a valid number"),
+];
+
+const completeSessionValidation = [
+  body("basic_training_session_id")
+    .notEmpty()
+    .withMessage("Session ID is required")
+    .isInt({ min: 1 })
+    .withMessage("Session ID must be a valid number"),
+];
+
 router.use(auth);
 
 // Get all training modes with progress
@@ -72,6 +93,32 @@ router.get(
   paginationValidation,
   validate,
   BasicTrainingController.getHistory
+);
+
+// Assess single material (upload audio and get AI feedback)
+router.post(
+  "/artikulasi/assess-material",
+  upload.single("audio"),
+  (req, res, next) => {
+    next();
+  },
+  artikulasiAssessmentValidation,
+  validate,
+  BasicTrainingController.assessArticulationMaterial
+);
+
+// Complete artikulasi session (calculate final scores from all materials)
+router.post(
+  "/artikulasi/complete-session",
+  completeSessionValidation,
+  validate,
+  BasicTrainingController.completeArtikulasiSession
+);
+
+// Get session assessments detail (all material assessments)
+router.get(
+  "/sessions/:id/assessments",
+  BasicTrainingController.getSessionAssessments
 );
 
 module.exports = router;

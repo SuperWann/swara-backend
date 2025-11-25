@@ -110,6 +110,13 @@ module.exports = (sequelize, DataTypes) => {
       onDelete: "CASCADE",
       onUpdate: "CASCADE",
     });
+
+    BasicTrainingSession.hasMany(models.BasicTrainingMaterialAssessment, {
+      foreignKey: "basic_training_session_id",
+      as: "materialAssessments",
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
+    });
   };
 
   return BasicTrainingSession;
