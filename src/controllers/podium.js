@@ -482,16 +482,27 @@ class PodiumController {
 
       const newProgressPodium = await ProgressPodium.findOne({
         where: { podium_session_id: podiumSession.podium_session_id },
-        order: [['progress_podium_id', 'DESC']],
-        attributes: {
-          exclude: ['result_ai']
-        }
+        order: [['progress_podium_id', 'DESC']]
       });
+
+      let suggestionResults = null;
+
+      try {
+        suggestionResults = JSON.parse(newProgressPodium.result_ai);
+      } catch (e) {
+        suggestionResults = null;
+      }
+
+      const cleaned = newProgressPodium.toJSON();
+      delete cleaned.result_ai;
 
       res.json({
         success: true,
         message: "Hasil podium session submitted successfully",
-        data: newProgressPodium,
+        data: {
+          updatedData: cleaned,
+          suggestions: suggestionResults
+        }
       });
     } catch (error) {
       console.log(error.errors);

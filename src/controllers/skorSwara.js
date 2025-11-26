@@ -541,14 +541,8 @@ class SkorSwaraController {
 
       try {
         suggestions = await chatgptService.generateSuggestions(videoResult, audioResult, level);
-
-        // if (!chatgptService.validateKeywords(customKeyword)) {
-        //   throw new Error("Generated keywords are invalid");
-        // }
         console.log(suggestions);
-
       } catch (aiError) {
-        // await transaction.rollback();
         return res.status(500).json({
           success: false,
           message: "Failed to generate suggestions",

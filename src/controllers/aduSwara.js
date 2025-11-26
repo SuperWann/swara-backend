@@ -14,6 +14,7 @@ const { DAILY_KEY } = require("../config/Daily")
 const { Op } = require("sequelize");
 const { cloudinary } = require("../config/cloudinary");
 const AudioExtractor = require('../utils/audioExtractor');
+const chatgptService = require("../services/chatgptService");
 const fs = require("fs");
 const axios = require('axios');
 const FormData = require("form-data");
@@ -278,144 +279,6 @@ class AduSwaraController {
     }
   }
 
-  // static async createMatch(req, res) {
-  //   const transaction = await sequelize.transaction();
-
-  //   try {
-  //     const { adu_swara_topic_id } = req.body;
-  //     const userId = req.user.user_id;
-
-  //     const topic = await AduSwaraTopic.findByPk(adu_swara_topic_id);
-  //     if (!topic) {
-  //       await transaction.rollback();
-  //       return res.status(404).json({
-  //         success: false,
-  //         message: "Topic not found",
-  //       });
-  //     }
-
-  //     const userActiveMatch = await MatchResult.findOne({
-  //       where: { user_id: userId },
-  //       include: [
-  //         {
-  //           model: Match,
-  //           as: "match",
-  //           where: { adu_swara_topic_id },
-  //           required: true,
-  //           include: [
-  //             {
-  //               model: MatchResult,
-  //               as: "results",
-  //             },
-  //           ],
-  //         },
-  //       ],
-  //       transaction,
-  //     });
-
-  //     if (userActiveMatch && userActiveMatch.match.results.length < 2) {
-  //       await transaction.rollback();
-  //       return res.status(400).json({
-  //         success: false,
-  //         message: "You already have an active match with this topic",
-  //       });
-  //     }
-
-  //     const allMatches = await Match.findAll({
-  //       where: { adu_swara_topic_id },
-  //       include: [
-  //         {
-  //           model: MatchResult,
-  //           as: "results",
-  //         },
-  //       ],
-  //       transaction,
-  //     });
-
-  //     let match = allMatches.find((m) => {
-  //       return m.results.length === 1 && m.results[0].user_id !== userId;
-  //     });
-
-  //     if (!match) {
-  //       match = await Match.create(
-  //         {
-  //           adu_swara_topic_id,
-  //           created_at: new Date(),
-  //         },
-  //         { transaction }
-  //       );
-  //     }
-
-  //     const matchResult = await MatchResult.create(
-  //       {
-  //         match_id: match.match_id,
-  //         user_id: userId,
-  //         point_earned: 0,
-  //         kelancaran_point: 0,
-  //         penggunaan_bahasa_point: 0,
-  //         ekspresi_point: 0,
-  //         struktur_kalimat_point: 0,
-  //         isi_point: 0,
-  //         kelancaran_suggest: "",
-  //         penggunaan_bahasa_suggest: "",
-  //         ekspresi_suggest: "",
-  //         struktur_kalimat_suggest: "",
-  //         isi_suggest: "",
-  //       },
-  //       { transaction }
-  //     );
-
-  //     await transaction.commit();
-
-  //     const fullMatch = await Match.findByPk(match.match_id, {
-  //       include: [
-  //         {
-  //           model: AduSwaraTopic,
-  //           as: "topic",
-  //           include: [
-  //             {
-  //               model: AduSwaraCategory,
-  //               as: "category",
-  //             },
-  //           ],
-  //         },
-  //         {
-  //           model: MatchResult,
-  //           as: "results",
-  //           include: [
-  //             {
-  //               model: User,
-  //               as: "user",
-  //               attributes: ["user_id", "full_name", "email"],
-  //             },
-  //           ],
-  //         },
-  //       ],
-  //     });
-
-  //     const isReady = fullMatch.results.length === 2;
-
-  //     res.json({
-  //       success: true,
-  //       message: isReady
-  //         ? "Match ready! Battle can start"
-  //         : "Waiting for opponent...",
-  //       data: {
-  //         match: fullMatch,
-  //         isReady,
-  //         countdown: 30,
-  //       },
-  //     });
-  //   } catch (error) {
-  //     await transaction.rollback();
-  //     res.status(500).json({
-  //       success: false,
-  //       message: "Failed to create match",
-  //       error: error.message,
-  //     });
-  //   }
-  // }
-
   static async getMatchDetail(req, res) {
     try {
       const { id } = req.params;
@@ -638,6 +501,19 @@ class AduSwaraController {
 
       console.log("✅ Both analyses completed successfully");
 
+      let suggestions = null;
+
+      try {
+        suggestions = await chatgptService.generateSuggestions(videoResult, audioResult, level);
+        console.log(suggestions);
+      } catch (aiError) {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to generate suggestions",
+          error: aiError.message,
+        });
+      }
+
       let tempo = 0;
       let artikulasi = 0;
       let kontak_mata = 0;
@@ -715,7 +591,7 @@ class AduSwaraController {
 
       } else if (level === 4) {
 
-        tempo = audioResult.result.tempo.score  || 0;
+        tempo = audioResult.result.tempo.score || 0;
         artikulasi = audioResult.result.articulation.score || 0;
         kontak_mata = videoResult.result.analysis_results.eye_contact.summary.gaze_away_time >= 0 &&
           videoResult.result.analysis_results.eye_contact.summary.gaze_away_time <= 5 ? 5 :
@@ -778,7 +654,7 @@ class AduSwaraController {
         kata_pengisi +
         kata_tidak_senonoh;
 
-      const result = await MatchResult.create({
+      await MatchResult.create({
         match_id: matchId,
         user_id: userId,
         point_earned: pointEarned,
@@ -793,12 +669,22 @@ class AduSwaraController {
         gestur,
         kata_pengisi,
         kata_tidak_senonoh,
+        result_ai: JSON.stringify(suggestions) || null,
+      });
+
+      const newMatchResult = await MatchResult.findOne({
+        where: { user_id: userId },
+        order: [["match_result_id", "DESC"]],
+        attributes: { exclude: ["result_ai"] }
       });
 
       res.status(200).json({
         success: true,
         message: "Match result submitted successfully",
-        data: result,
+        data: {
+          matchResult: newMatchResult,
+          suggestions: suggestions
+        },
       });
 
     } catch (error) {
