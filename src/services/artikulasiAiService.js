@@ -7,7 +7,8 @@ const { Blob } = globalThis.Blob ? globalThis : require("buffer");
 class ArtikulasiAiService {
   constructor() {
     this.spaceUrl =
-      process.env.ARTIKULASI_AI_URL || 'Cyberlace/latihan-artikulasi';
+      process.env.ARTIKULASI_AI_URL ||
+      "https://cyberlace-latihan-artikulasi.hf.space";
     this.apiName = "/score_audio_api";
   }
 
@@ -48,6 +49,11 @@ class ArtikulasiAiService {
         `Analyzing articulation: target="${targetText}", level=${level}, filename=${filename}`
       );
 
+      const spaceUrl = this.spaceUrl?.trim();
+      if (!spaceUrl) {
+        throw new Error("ARTIKULASI_AI_URL is not configured");
+      }
+
       if (Buffer.isBuffer(audioFileOrPath)) {
         tempFilePath = path.join(
           __dirname,
@@ -62,8 +68,8 @@ class ArtikulasiAiService {
         throw new Error(`Audio file not found: ${audioFileOrPath}`);
       }
 
-      console.log(`Connecting to Gradio Space: ${this.spaceUrl}`);
-      const client = await Client.connect(this.spaceUrl, {
+      console.log(`Connecting to Gradio Space: ${spaceUrl}`);
+      const client = await Client.connect(spaceUrl, {
         hf_token: process.env.HF_TOKEN || undefined,
       });
       console.log(`✅ Connected to Gradio Space`);
@@ -109,8 +115,7 @@ class ArtikulasiAiService {
       if (tempFilePath && fs.existsSync(tempFilePath)) {
         try {
           fs.unlinkSync(tempFilePath);
-        } catch (cleanupError) {
-        }
+        } catch (cleanupError) {}
       }
 
       if (error.message.includes("connect")) {
