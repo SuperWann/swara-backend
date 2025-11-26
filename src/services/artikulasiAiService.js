@@ -7,7 +7,7 @@ const { Blob } = globalThis.Blob ? globalThis : require("buffer");
 class ArtikulasiAiService {
   constructor() {
     this.spaceUrl =
-      process.env.ARTIKULASI_AI_URL;
+      process.env.ARTIKULASI_AI_URL || 'Cyberlace/latihan-artikulasi';
     this.apiName = "/score_audio_api";
   }
 
