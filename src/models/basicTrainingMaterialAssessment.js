@@ -37,6 +37,16 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         comment: "Text detected by AI",
       },
+      detections: {
+        type: DataTypes.DECIMAL,
+        allowNull: true,
+        comment: "How many expression detected by AI",
+      },
+      wpm: {
+        type: DataTypes.DECIMAL,
+        allowNull: true,
+        comment: "Words per minute",
+      },
       overall_score: {
         type: DataTypes.DECIMAL(5, 2),
         allowNull: true,

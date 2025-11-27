@@ -51,6 +51,51 @@ const artikulasiAssessmentValidation = [
     .withMessage("Material ID must be a valid number"),
 ];
 
+const completeNonArtikulasiSessionValidation = [
+  body("basic_training_session_id")
+    .notEmpty()
+    .withMessage("Session ID is required")
+    .isInt({ min: 1 })
+    .withMessage("Session ID must be a valid number"),
+  body("total_score")
+    .notEmpty()
+    .withMessage("Total score is required")
+    .isFloat({ min: 0, max: 100 })
+    .withMessage("Total score must be between 0-100"),
+  body("feedback")
+    .notEmpty()
+    .withMessage("Feedback is required")
+    .isString()
+    .withMessage("Feedback must be a string"),
+  body("materials")
+    .notEmpty()
+    .withMessage("Materials array is required")
+    .isArray()
+    .withMessage("Materials must be an array"),
+  body("materials.*.material_id")
+    .notEmpty()
+    .withMessage("Material ID is required")
+    .isInt({ min: 1 })
+    .withMessage("Material ID must be a valid number"),
+  body("materials.*.score")
+    .notEmpty()
+    .withMessage("Material score is required")
+    .isFloat({ min: 0, max: 100 })
+    .withMessage("Material score must be between 0-100"),
+  body("materials.*.detection")
+    .optional()
+    .isFloat()
+    .withMessage("Detection must be a string"),
+  body("materials.*.wpm")
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage("WPM must be a positive number"),
+  body("wpm")
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage("Average WPM must be a positive number"),
+];
+
 const completeSessionValidation = [
   body("basic_training_session_id")
     .notEmpty()
@@ -95,7 +140,7 @@ router.get(
   BasicTrainingController.getHistory
 );
 
-// Assess single material (upload audio and get AI feedback)
+// Assess single material for Artikulasi (upload audio and get AI feedback)
 router.post(
   "/artikulasi/assess-material",
   upload.single("audio"),
@@ -113,6 +158,13 @@ router.post(
   completeSessionValidation,
   validate,
   BasicTrainingController.completeArtikulasiSession
+);
+
+router.post(
+  "/complete-session",
+  completeNonArtikulasiSessionValidation,
+  validate,
+  BasicTrainingController.completeNonArtikulasiSession
 );
 
 // Get session assessments detail (all material assessments)

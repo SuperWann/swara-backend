@@ -675,16 +675,6 @@ class BasicTrainingController {
       const { basic_training_session_id, basic_training_material_id } =
         req.body;
 
-      if (!req.file) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "Audio file is required",
-        });
-      }
-
-      audioPath = req.file.path;
-
       const session = await BasicTrainingSession.findOne({
         where: {
           basic_training_session_id,
@@ -708,8 +698,8 @@ class BasicTrainingController {
 
       if (!session) {
         await transaction.rollback();
-        if (audioPath) {
-          await fsPromises.unlink(audioPath).catch(() => {});
+        if (req.file) {
+          await fsPromises.unlink(req.file.path).catch(() => {});
         }
         return res.status(404).json({
           success: false,
@@ -717,184 +707,215 @@ class BasicTrainingController {
         });
       }
 
-      if (session.level.mode.slug !== "artikulasi") {
+      const mode = session.level.mode.slug;
+
+      if (mode === "artikulasi") {
+        if (!req.file) {
+          await transaction.rollback();
+          return res.status(400).json({
+            success: false,
+            message: "Audio file is required for Artikulasi mode",
+          });
+        }
+        audioPath = req.file.path;
+      } else if (mode === "ekspresi") {
+        const { overall_score, detection } = req.body;
+        if (!overall_score) {
+          await transaction.rollback();
+          return res.status(400).json({
+            success: false,
+            message: "Overall score is required for Ekspresi mode",
+          });
+        }
+      } else if (mode === "tempo") {
+        const { overall_score, wpm } = req.body;
+        if (!overall_score) {
+          await transaction.rollback();
+          return res.status(400).json({
+            success: false,
+            message: "Overall score is required for Tempo mode",
+          });
+        }
+      } else {
         await transaction.rollback();
-        if (audioPath) {
-          await fsPromises.unlink(audioPath).catch(() => {});
+        if (req.file) {
+          await fsPromises.unlink(req.file.path).catch(() => {});
         }
         return res.status(400).json({
           success: false,
-          message: "This endpoint only supports Artikulasi mode (mode_id = 1)",
+          message: `Unsupported mode: ${mode}`,
         });
       }
 
-      const material = await BasicTrainingMaterial.findOne({
-        where: {
-          basic_training_material_id,
-          basic_training_level_id: session.basic_training_level_id,
-          is_active: true,
-        },
-        transaction,
-      });
-
-      if (!material) {
-        await transaction.rollback();
-        if (audioPath) {
-          await fsPromises.unlink(audioPath).catch(() => {});
-        }
-        return res.status(404).json({
-          success: false,
-          message: "Material not found for this level",
+      if (mode === "artikulasi") {
+        const material = await BasicTrainingMaterial.findOne({
+          where: {
+            basic_training_material_id,
+            basic_training_level_id: session.basic_training_level_id,
+            is_active: true,
+          },
+          transaction,
         });
-      }
 
-      let assessment = await BasicTrainingMaterialAssessment.findOne({
-        where: {
-          basic_training_session_id,
-          basic_training_material_id,
-        },
-        transaction,
-      });
-
-      let isRetry = false;
-
-      if (assessment) {
-        if (assessment.grade === 'A') {
+        if (!material) {
           await transaction.rollback();
           if (audioPath) {
             await fsPromises.unlink(audioPath).catch(() => {});
           }
-          return res.status(400).json({
+          return res.status(404).json({
             success: false,
-            message: "Material ini sudah mendapat grade A. Tidak perlu retry lagi.",
-            data: {
-              current_grade: assessment.grade,
-              current_score: assessment.overall_score
-            }
+            message: "Material not found for this level",
           });
         }
 
-        console.log(`Retry attempt for material ${basic_training_material_id}, current grade: ${assessment.grade}`);
-        isRetry = true;
-
-        if (assessment.audio_path && fs.existsSync(assessment.audio_path)) {
-          try {
-            fs.unlinkSync(assessment.audio_path);
-            console.log('Old audio file deleted');
-          } catch (err) {
-            console.error('Failed to delete old audio:', err.message);
-          }
-        }
-
-        await assessment.update({
-          audio_path: audioPath,
-          status: "pending",
-        }, { transaction });
-
-      } else {
-        assessment = await BasicTrainingMaterialAssessment.create(
-          {
+        let assessment = await BasicTrainingMaterialAssessment.findOne({
+          where: {
             basic_training_session_id,
             basic_training_material_id,
+          },
+          transaction,
+        });
+
+        let isRetry = false;
+
+        if (assessment) {
+          if (assessment.grade === 'A') {
+            await transaction.rollback();
+            if (audioPath) {
+              await fsPromises.unlink(audioPath).catch(() => {});
+            }
+            return res.status(400).json({
+              success: false,
+              message: "Material ini sudah mendapat grade A. Tidak perlu retry lagi.",
+              data: {
+                current_grade: assessment.grade,
+                current_score: assessment.overall_score
+              }
+            });
+          }
+
+          console.log(`Retry attempt for material ${basic_training_material_id}, current grade: ${assessment.grade}`);
+          isRetry = true;
+
+          if (assessment.audio_path && fs.existsSync(assessment.audio_path)) {
+            try {
+              fs.unlinkSync(assessment.audio_path);
+              console.log('Old audio file deleted');
+            } catch (err) {
+              console.error('Failed to delete old audio:', err.message);
+            }
+          }
+
+          await assessment.update({
             audio_path: audioPath,
-            target_text: material.content,
             status: "pending",
-          },
-          { transaction }
-        );
-      }
+          }, { transaction });
 
-      await transaction.commit();
-
-      try {
-        console.log(
-          `Calling AI for material assessment: target="${material.content}", level=${session.level.level}`
-        );
-
-        const audioBuffer = fs.readFileSync(audioPath);
-        const originalFilename = path.basename(audioPath);
-
-        console.log(`Audio file size: ${audioBuffer.length} bytes`);
-
-        const aiResponse = await artikulasiAiService.analyzeArticulation(
-          audioBuffer,
-          material.content,
-          session.level.level,
-          originalFilename
-        );
-
-        const normalizedData = artikulasiAiService.validateResponse(aiResponse);
-
-        await assessment.update({
-          detected_text: normalizedData.detected_text,
-          overall_score: normalizedData.overall_score,
-          grade: normalizedData.grade,
-          clarity_score: normalizedData.clarity_score,
-          energy_score: normalizedData.energy_score,
-          speech_rate_score: normalizedData.speech_rate_score,
-          pitch_consistency_score: normalizedData.pitch_consistency_score,
-          snr_score: normalizedData.snr_score,
-          articulation_score: normalizedData.articulation_score,
-          similarity_score: normalizedData.similarity_score,
-          wer: normalizedData.wer,
-          feedback_message: normalizedData.feedback_message,
-          feedback_suggestions: normalizedData.feedback_suggestions,
-          ai_response: normalizedData.ai_response,
-          status: "completed",
-        });
-
-        res.json({
-          success: true,
-          message: isRetry 
-            ? `Retry berhasil! Grade sebelumnya diperbaharui.` 
-            : "Material assessed successfully",
-          data: {
-            assessment_id: assessment.assessment_id,
-            is_retry: isRetry,
-            material: {
-              basic_training_material_id: material.basic_training_material_id,
-              content: material.content,
-              order_index: material.order_index,
+        } else {
+          assessment = await BasicTrainingMaterialAssessment.create(
+            {
+              basic_training_session_id,
+              basic_training_material_id,
+              audio_path: audioPath,
+              target_text: material.content,
+              status: "pending",
             },
-            results: {
-              overall: {
-                score: normalizedData.overall_score,
-                grade: normalizedData.grade,
+            { transaction }
+          );
+        }
+
+        await transaction.commit();
+
+        try {
+          console.log(
+            `Calling AI for material assessment: target="${material.content}", level=${session.level.level}`
+          );
+
+          const audioBuffer = fs.readFileSync(audioPath);
+          const originalFilename = path.basename(audioPath);
+
+          console.log(`Audio file size: ${audioBuffer.length} bytes`);
+
+          const aiResponse = await artikulasiAiService.analyzeArticulation(
+            audioBuffer,
+            material.content,
+            session.level.level,
+            originalFilename
+          );
+
+          const normalizedData = artikulasiAiService.validateResponse(aiResponse);
+
+          await assessment.update({
+            detected_text: normalizedData.detected_text,
+            overall_score: normalizedData.overall_score,
+            grade: normalizedData.grade,
+            clarity_score: normalizedData.clarity_score,
+            energy_score: normalizedData.energy_score,
+            speech_rate_score: normalizedData.speech_rate_score,
+            pitch_consistency_score: normalizedData.pitch_consistency_score,
+            snr_score: normalizedData.snr_score,
+            articulation_score: normalizedData.articulation_score,
+            similarity_score: normalizedData.similarity_score,
+            wer: normalizedData.wer,
+            feedback_message: normalizedData.feedback_message,
+            feedback_suggestions: normalizedData.feedback_suggestions,
+            ai_response: normalizedData.ai_response,
+            status: "completed",
+          });
+
+          res.json({
+            success: true,
+            message: isRetry 
+              ? `Retry berhasil! Grade sebelumnya diperbaharui.` 
+              : "Material assessed successfully",
+            data: {
+              assessment_id: assessment.assessment_id,
+              is_retry: isRetry,
+              material: {
+                basic_training_material_id: material.basic_training_material_id,
+                content: material.content,
+                order_index: material.order_index,
               },
-              transcription: {
-                target: normalizedData.target_text,
-                detected: normalizedData.detected_text,
-                similarity: normalizedData.similarity_score,
-                wer: normalizedData.wer,
-              },
-              scores: {
-                clarity: normalizedData.clarity_score,
-                energy: normalizedData.energy_score,
-                speech_rate: normalizedData.speech_rate_score,
-                pitch_consistency: normalizedData.pitch_consistency_score,
-                snr: normalizedData.snr_score,
-                articulation: normalizedData.articulation_score,
-              },
-              feedback: {
-                message: normalizedData.feedback_message,
-                suggestions: normalizedData.feedback_suggestions,
+              results: {
+                overall: {
+                  score: normalizedData.overall_score,
+                  grade: normalizedData.grade,
+                },
+                transcription: {
+                  target: normalizedData.target_text,
+                  detected: normalizedData.detected_text,
+                  similarity: normalizedData.similarity_score,
+                  wer: normalizedData.wer,
+                },
+                scores: {
+                  clarity: normalizedData.clarity_score,
+                  energy: normalizedData.energy_score,
+                  speech_rate: normalizedData.speech_rate_score,
+                  pitch_consistency: normalizedData.pitch_consistency_score,
+                  snr: normalizedData.snr_score,
+                  articulation: normalizedData.articulation_score,
+                },
+                feedback: {
+                  message: normalizedData.feedback_message,
+                  suggestions: normalizedData.feedback_suggestions,
+                },
               },
             },
-          },
-        });
-      } catch (aiError) {
-        console.error("AI Service Error:", aiError);
+          });
+        } catch (aiError) {
+          console.error("AI Service Error:", aiError);
 
-        await assessment.update({
-          status: "failed",
-          feedback_message: aiError.message,
-        });
+          await assessment.update({
+            status: "failed",
+            feedback_message: aiError.message,
+          });
 
-        res.status(500).json({
-          success: false,
-          message: "Failed to analyze audio",
-          error: aiError.message,
-        });
+          res.status(500).json({
+            success: false,
+            message: "Failed to analyze audio",
+            error: aiError.message,
+          });
+        }
       }
     } catch (error) {
       await transaction.rollback();
@@ -1149,6 +1170,149 @@ class BasicTrainingController {
         error: error.message,
       });
     }
+  }
+
+
+
+  static async completeNonArtikulasiSession(req, res) {
+    const transaction = await sequelize.transaction();
+
+    try {
+      const userId = req.user.user_id;
+      const {
+        basic_training_session_id,
+        total_score,
+        feedback,
+        materials,
+        wpm,
+      } = req.body;
+
+      const session = await BasicTrainingSession.findOne({
+        where: {
+          basic_training_session_id,
+          user_id: userId,
+        },
+        include: [
+          {
+            model: BasicTrainingLevel,
+            as: "level",
+            include: [
+              {
+                model: BasicTrainingMode,
+                as: "mode",
+                attributes: ["basic_training_mode_id", "name", "slug"],
+              },
+            ],
+          },
+        ],
+        transaction,
+      });
+
+      if (!session) {
+        await transaction.rollback();
+        return res.status(404).json({
+          success: false,
+          message: "Training session not found",
+        });
+      }
+
+      const mode = session.level.mode.slug;
+
+      if (!["ekspresi", "tempo"].includes(mode)) {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "This endpoint only supports Ekspresi and Tempo mode",
+        });
+      }
+
+      if (session.status === "completed") {
+        await transaction.rollback();
+        return res.status(400).json({
+          success: false,
+          message: "Session already completed",
+        });
+      }
+
+      if (materials && Array.isArray(materials)) {
+        for (const material of materials) {
+          const assessmentData = {
+            basic_training_session_id,
+            basic_training_material_id: material.material_id,
+            target_text: material.content || "",
+            overall_score: parseFloat(material.score),
+            grade: BasicTrainingController.calculateGrade(material.score),
+            status: "completed",
+          };
+
+          if (mode === "ekspresi" && material.detection) {
+            assessmentData.detections = material.detection;
+          } else if (mode === "tempo" && material.wpm) {
+            assessmentData.wpm = parseFloat(material.wpm);
+          }
+
+          await BasicTrainingMaterialAssessment.create(assessmentData, {
+            transaction,
+          });
+        }
+      }
+
+      const updateData = {
+        total_score: parseFloat(total_score),
+        status: "completed",
+        finished_at: new Date(),
+      };
+
+      if (mode === "ekspresi") {
+        updateData.expression_score = parseFloat(total_score);
+      } else if (mode === "tempo") {
+        updateData.tempo_score = parseFloat(total_score);
+      }
+
+      await session.update(updateData, { transaction });
+
+      await transaction.commit();
+
+      const responseData = {
+        session_id: session.basic_training_session_id,
+        mode: mode,
+        total_score: session.total_score,
+        grade: BasicTrainingController.calculateGrade(total_score),
+        feedback: feedback,
+      };
+
+      if (mode === "ekspresi") {
+        responseData.expression_score = session.expression_score;
+      } else if (mode === "tempo") {
+        responseData.tempo_score = session.tempo_score;
+        if (wpm) {
+          responseData.average_wpm = parseFloat(wpm);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `${mode.charAt(0).toUpperCase() + mode.slice(1)} session completed successfully`,
+        data: responseData,
+      });
+    } catch (error) {
+      await transaction.rollback();
+      console.error("Error in completeNonArtikulasiSession:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to complete session",
+        error: error.message,
+      });
+    }
+  }
+
+  static calculateGrade(score) {
+    const numScore = parseFloat(score);
+    if (numScore >= 90) return "A";
+    if (numScore >= 80) return "B";
+    if (numScore >= 70) return "C";
+    if (numScore >= 60) return "D";
+    return "E";
   }
 }
 
