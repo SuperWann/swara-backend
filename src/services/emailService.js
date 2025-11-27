@@ -1,15 +1,15 @@
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
 
 class EmailService {
   constructor() {
     this.transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+      host: process.env.EMAIL_HOST || "smtp.gmail.com",
       port: process.env.EMAIL_PORT || 587,
-      secure: process.env.EMAIL_SECURE === 'true',
+      secure: process.env.EMAIL_SECURE === "true",
       auth: {
         user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
-      }
+        pass: process.env.EMAIL_PASSWORD,
+      },
     });
   }
 
@@ -29,7 +29,7 @@ class EmailService {
       pricePerMonth,
       totalAmount,
       paymentDate,
-      paymentMethod
+      paymentMethod,
     } = invoiceData;
 
     return `
@@ -86,11 +86,11 @@ class EmailService {
               </tr>
               <tr>
                 <td>Harga per Bulan</td>
-                <td>Rp ${pricePerMonth.toLocaleString('id-ID')}</td>
+                <td>Rp ${pricePerMonth.toLocaleString("id-ID")}</td>
               </tr>
               <tr class="total">
                 <td>TOTAL PEMBAYARAN</td>
-                <td>Rp ${totalAmount.toLocaleString('id-ID')}</td>
+                <td>Rp ${totalAmount.toLocaleString("id-ID")}</td>
               </tr>
             </table>
             
@@ -112,33 +112,26 @@ class EmailService {
    */
   async sendSchoolCredentials(emailData) {
     try {
-      console.log('📧 Starting email send process...');
-      console.log('Email config check:', {
+      console.log("📧 Starting email send process...");
+      console.log("Email config check:", {
         host: process.env.EMAIL_HOST,
         port: process.env.EMAIL_PORT,
         user: process.env.EMAIL_USER,
         hasPassword: !!process.env.EMAIL_PASSWORD,
-        passwordLength: process.env.EMAIL_PASSWORD?.length
+        passwordLength: process.env.EMAIL_PASSWORD?.length,
       });
 
-      const {
-        to,
-        picName,
-        schoolName,
-        email,
-        password,
-        token,
-        invoiceData
-      } = emailData;
+      const { to, picName, schoolName, email, password, token, invoiceData } =
+        emailData;
 
-      console.log('Sending email to:', to);
+      console.log("Sending email to:", to);
 
       const invoiceHTML = this.generateInvoiceHTML(invoiceData);
 
       const mailOptions = {
         from: `"Swara Platform" <${process.env.EMAIL_USER}>`,
         to: to,
-        subject: 'Selamat Datang di Platform Swara - Kredensial Login Sekolah',
+        subject: "Selamat Datang di Platform Swara - Kredensial Login Sekolah",
         html: `
           <!DOCTYPE html>
           <html>
@@ -146,12 +139,12 @@ class EmailService {
             <style>
               body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
               .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: #4CAF50; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+              .header { background: #F07122; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
               .content { padding: 20px; background: #f9f9f9; }
-              .credentials { background: white; padding: 15px; margin: 20px 0; border-left: 4px solid #4CAF50; }
+              .credentials { background: white; padding: 15px; margin: 20px 0; border-left: 4px solid #F07122; }
               .credentials p { margin: 10px 0; }
               .important { color: #d32f2f; font-weight: bold; }
-              .button { display: inline-block; padding: 12px 30px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+              .button { display: inline-block; padding: 12px 30px; background: #F07122; color: white !important; text-decoration: none; border-radius: 5px; margin: 20px 0; }
               .footer { text-align: center; padding: 20px; color: #777; font-size: 12px; }
             </style>
           </head>
@@ -185,7 +178,9 @@ class EmailService {
                 <p>Siswa dapat mendaftar dengan menggunakan token sekolah: <strong>${token}</strong></p>
                 <p>Setelah siswa mendaftar dengan token ini, mereka akan otomatis terhubung dengan akun sekolah Anda.</p>
                 
-                <a href="${process.env.APP_URL || 'https://swara.com'}" class="button">Login Sekarang</a>
+                <a href="${
+                  process.env.APP_URL || "https://swara.com"
+                }" class="button" style="display: inline-block; padding: 12px 30px; background: #F07122; color: #ffffff !important; text-decoration: none; border-radius: 5px; margin: 20px 0;">Login Sekarang</a>
                 
                 <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
                 
@@ -201,24 +196,24 @@ class EmailService {
             </div>
           </body>
           </html>
-        `
+        `,
       };
 
-      console.log('📨 Sending email with nodemailer...');
+      console.log("📨 Sending email with nodemailer...");
       const info = await this.transporter.sendMail(mailOptions);
-      
-      console.log('✅ Email sent successfully!');
-      console.log('Message ID:', info.messageId);
-      console.log('Response:', info.response);
-      
+
+      console.log("✅ Email sent successfully!");
+      console.log("Message ID:", info.messageId);
+      console.log("Response:", info.response);
+
       return {
         success: true,
         messageId: info.messageId,
-        message: 'Email sent successfully'
+        message: "Email sent successfully",
       };
     } catch (error) {
-      console.error('Email send error:', error);
-      throw new Error('Failed to send email: ' + error.message);
+      console.error("Email send error:", error);
+      throw new Error("Failed to send email: " + error.message);
     }
   }
 
@@ -231,7 +226,7 @@ class EmailService {
       await this.transporter.verify();
       return true;
     } catch (error) {
-      console.error('Email verification error:', error);
+      console.error("Email verification error:", error);
       return false;
     }
   }
