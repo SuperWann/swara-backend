@@ -1,12 +1,13 @@
 const express = require('express');
 const MentorController = require('../controllers/mentor');
 const { checkRole, authenticateToken } = require('../middleware/auth');
+const { uploadImage } = require('../config/cloudinary');
 
 const router = express.Router();
 
 router.get('/activities/:id', authenticateToken, MentorController.getAllActivities);
-router.post('/activity', authenticateToken, MentorController.createActivity);
-router.put('/activity/:id', authenticateToken, MentorController.updateActivity);
+router.post('/activity', uploadImage.single('image'), authenticateToken, MentorController.createActivity);
+router.put('/activity/:id', uploadImage.single('image'), authenticateToken, MentorController.updateActivity);
 router.delete('/activity/:id', authenticateToken, MentorController.deleteActivity);
 
 // Mentoring schedule

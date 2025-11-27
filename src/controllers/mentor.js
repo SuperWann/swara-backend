@@ -31,7 +31,13 @@ class MentorController {
   static async createActivity(req, res) {
     try {
       const { user_id, judul_aktivitas, deskripsi } = req.body;
-      const newActivity = await MentorActivity.create({ user_id, judul_aktivitas, deskripsi });
+      const newActivity = await MentorActivity.create(
+        {
+          user_id,
+          judul_aktivitas,
+          deskripsi,
+          image: req.file ? req.file.path : null
+        });
       res.json({
         success: true,
         message: 'Activity created successfully',
@@ -182,57 +188,57 @@ class MentorController {
     }
   }
 
-    static async updateActivity(req, res) {
-        try {
-            const { id } = req.params;
-            const { judul_aktivitas, deskripsi } = req.body;
-            const [updated] = await MentorActivity.update(
-                { judul_aktivitas, deskripsi },
-                { where: { mentor_activity_id: id } }
-            );
-            if (updated) {
-                res.json({
-                    success: true,
-                    message: 'Activity updated successfully',
-                    data: { id, judul_aktivitas, deskripsi }
-                });
-            } else {
-                res.status(404).json({
-                    success: false,
-                    message: 'Activity not found',
-                });
-            }
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Failed to update activity',
-                error: error.message
-            });
-        }
+  static async updateActivity(req, res) {
+    try {
+      const { id } = req.params;
+      const { judul_aktivitas, deskripsi } = req.body;
+      const [updated] = await MentorActivity.update(
+        { judul_aktivitas, deskripsi, image: req.file ? req.file.path : null },
+        { where: { mentor_activity_id: id } }
+      );
+      if (updated) {
+        res.json({
+          success: true,
+          message: 'Activity updated successfully',
+          data: { id, judul_aktivitas, deskripsi }
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          message: 'Activity not found',
+        });
+      }
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update activity',
+        error: error.message
+      });
     }
-    static async deleteActivity(req, res) {
-        try {
-            const { id } = req.params;
-            const deleted = await MentorActivity.destroy({ where: { mentor_activity_id: id } });
-            if (deleted) {
-                res.json({
-                    success: true,
-                    message: 'Activity deleted successfully',
-                });
-            } else {
-                res.status(404).json({
-                    success: false,
-                    message: 'Activity not found',
-                });
-            }
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Failed to delete activity',
-                error: error.message
-            });
-        }
+  }
+  static async deleteActivity(req, res) {
+    try {
+      const { id } = req.params;
+      const deleted = await MentorActivity.destroy({ where: { mentor_activity_id: id } });
+      if (deleted) {
+        res.json({
+          success: true,
+          message: 'Activity deleted successfully',
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          message: 'Activity not found',
+        });
+      }
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete activity',
+        error: error.message
+      });
     }
+  }
 
   static async getMentorSessions(req, res) {
     try {
@@ -267,30 +273,30 @@ class MentorController {
       let formattedSessions = mentoringSessions.map(session => {
         const sessionDate = new Date(session.jadwal);
         const isUpcoming = sessionDate >= now;
-        
+
         let sessionStatus = 'terjadwal';
         if (sessionDate < now) {
           sessionStatus = 'selesai';
         }
-        
+
         const transactionStatus = session.payment?.transaction_status || 'pending';
         const isPaid = transactionStatus === 'settlement' || transactionStatus === 'capture';
 
         return {
           mentoring_id: session.mentoring_id,
-          
+
           mentee: {
             user_id: session.mentee.user_id,
             full_name: session.mentee.full_name,
             email: session.mentee.email,
             phone_number: session.mentee.phone_number
           },
-          
+
           jadwal: session.jadwal,
           tujuan_mentoring: session.tujuan_mentoring,
           metode_mentoring_id: session.metode_mentoring_id,
           status: sessionStatus,
-          
+
           payment_status: transactionStatus,
           is_paid: isPaid,
           payment_info: session.payment ? {
@@ -301,11 +307,11 @@ class MentorController {
             payment_type: session.payment.payment_type,
             paid_at: session.payment.paid_at
           } : null,
-          
-          formatted_date: sessionDate.toLocaleDateString('id-ID', { 
-            day: 'numeric', 
-            month: 'long', 
-            year: 'numeric' 
+
+          formatted_date: sessionDate.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
           }),
           formatted_time: sessionDate.toLocaleTimeString('id-ID', {
             hour: '2-digit',
@@ -358,7 +364,7 @@ class MentorController {
       console.log('Getting session detail:', sessionId, 'for mentor:', mentorUserId);
 
       const session = await Mentoring.findOne({
-        where: { 
+        where: {
           mentoring_id: sessionId
         },
         include: [
@@ -405,7 +411,7 @@ class MentorController {
 
       const detailedSession = {
         mentoring_id: session.mentoring_id,
-        
+
         mentee: {
           user_id: session.mentee.user_id,
           full_name: session.mentee.full_name,
@@ -414,14 +420,14 @@ class MentorController {
           rating: null,
           total_sessions_with_mentor: totalSessionsCount
         },
-        
+
         session_info: {
           jadwal: session.jadwal,
-          formatted_date: sessionDate.toLocaleDateString('id-ID', { 
+          formatted_date: sessionDate.toLocaleDateString('id-ID', {
             weekday: 'long',
-            day: 'numeric', 
-            month: 'long', 
-            year: 'numeric' 
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
           }),
           formatted_time: sessionDate.toLocaleTimeString('id-ID', {
             hour: '2-digit',
@@ -431,12 +437,12 @@ class MentorController {
           tujuan_mentoring: session.tujuan_mentoring,
           status: isUpcoming ? 'terjadwal' : 'selesai'
         },
-        
+
         metode: {
           metode_mentoring_id: session.metode_mentoring_id,
           metode_name: 'Zoom/Google Meeting'
         },
-        
+
         payment: {
           payment_status: transactionStatus,
           is_paid: isPaid,
@@ -446,7 +452,7 @@ class MentorController {
           order_id: session.payment?.order_id || null,
           payment_url: session.payment?.payment_url || null
         },
-        
+
         // Additional info
         created_at: session.created_at
       };
