@@ -406,7 +406,10 @@ exports.getMentoringDetail = async (req, res) => {
     const session = await Mentoring.findOne({
       where: {
         mentoring_id: mentoringId,
-        mentee_user_id: userId
+        [Op.or]: [
+          { mentee_user_id: userId },
+          { mentor_user_id: userId }
+        ]
       },
       include: [
         {
@@ -458,12 +461,16 @@ exports.getMentoringDetail = async (req, res) => {
       sessionStatus = 'payment_failed';
     }
 
+    // Tambahkan role user dalam response
+    const userRole = session.mentee_user_id === userId ? 'mentee' : 'mentor';
+
     res.status(200).json({
       success: true,
       message: 'Mentoring session detail retrieved successfully',
       data: {
         ...session.toJSON(),
-        session_status: sessionStatus
+        session_status: sessionStatus,
+        user_role: userRole // Tambahkan informasi role user
       }
     });
   } catch (error) {
@@ -482,7 +489,7 @@ exports.getMentoringDetail = async (req, res) => {
 exports.handlePaymentNotification = async (req, res) => {
   try {
     console.log('📨 Received Midtrans notification:', req.body);
-    
+
     const notification = req.body;
 
     // Validate required fields
@@ -495,9 +502,9 @@ exports.handlePaymentNotification = async (req, res) => {
     }
 
     // Detect if this is manual testing (no real Midtrans transaction)
-    const isManualTest = !notification.signature_key || 
-                         notification.signature_key === 'test-signature' ||
-                         process.env.MIDTRANS_SKIP_VERIFICATION === 'true';
+    const isManualTest = !notification.signature_key ||
+      notification.signature_key === 'test-signature' ||
+      process.env.MIDTRANS_SKIP_VERIFICATION === 'true';
 
     if (isManualTest) {
       console.log('🧪 TESTING MODE: Manual webhook test detected');
@@ -553,14 +560,14 @@ exports.handlePaymentNotification = async (req, res) => {
     };
 
     // Handle different transaction statuses
-    if (statusResponse.transactionStatus === 'settlement' || 
-        (statusResponse.transactionStatus === 'capture' && statusResponse.fraudStatus === 'accept')) {
+    if (statusResponse.transactionStatus === 'settlement' ||
+      (statusResponse.transactionStatus === 'capture' && statusResponse.fraudStatus === 'accept')) {
       // Payment successful
       updateData.paid_at = new Date();
       updateData.transaction_status = 'settlement';
-      
+
       console.log('✅ Payment SUCCESS for order:', statusResponse.orderId);
-      
+
       if (mentoring) {
         console.log('Mentoring details:', {
           mentoring_id: mentoring.mentoring_id,
@@ -568,19 +575,19 @@ exports.handlePaymentNotification = async (req, res) => {
           mentor: mentoring.mentor ? mentoring.mentor.full_name : 'N/A',
           jadwal: mentoring.jadwal
         });
-        
+
         // TODO: Send email notification to mentee and mentor
         // TODO: Add to calendar or schedule notification
       }
-      
+
     } else if (statusResponse.transactionStatus === 'pending') {
       console.log('⏳ Payment PENDING for order:', statusResponse.orderId);
-      
-    } else if (statusResponse.transactionStatus === 'deny' || 
-               statusResponse.transactionStatus === 'expire' || 
-               statusResponse.transactionStatus === 'cancel') {
+
+    } else if (statusResponse.transactionStatus === 'deny' ||
+      statusResponse.transactionStatus === 'expire' ||
+      statusResponse.transactionStatus === 'cancel') {
       console.log('❌ Payment FAILED for order:', statusResponse.orderId, '- Status:', statusResponse.transactionStatus);
-      
+
     } else if (statusResponse.transactionStatus === 'refund') {
       console.log('↩️ Payment REFUNDED for order:', statusResponse.orderId);
     }
@@ -599,11 +606,11 @@ exports.handlePaymentNotification = async (req, res) => {
       success: true,
       message: 'Notification received successfully'
     });
-    
+
   } catch (error) {
     console.error('❌ Handle payment notification error:', error);
     console.error('Error stack:', error.stack);
-    
+
     // Still return 200 to Midtrans to prevent retry
     res.status(200).json({
       success: false,
@@ -660,12 +667,12 @@ exports.checkPaymentStatus = async (req, res) => {
         fraud_status: status.fraudStatus
       };
 
-      if ((status.transactionStatus === 'settlement' || 
-           (status.transactionStatus === 'capture' && status.fraudStatus === 'accept')) 
-          && !mentoring.payment.paid_at) {
+      if ((status.transactionStatus === 'settlement' ||
+        (status.transactionStatus === 'capture' && status.fraudStatus === 'accept'))
+        && !mentoring.payment.paid_at) {
         updateData.paid_at = new Date();
         updateData.transaction_status = 'settlement';
-        
+
         console.log('✅ Payment confirmed via status check:', mentoring.payment.order_id);
       }
 
