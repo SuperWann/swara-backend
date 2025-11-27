@@ -7,6 +7,195 @@ const axios = require("axios");
 const FormData = require("form-data");
 const { Op } = require("sequelize");
 
+function buildLevelResponse(level, audioResult, videoResult) {
+  const resp = {
+    level,
+    details: {}
+  };
+
+  const tempo = audioResult.result.tempo.score || 0;
+  const artikulasi = audioResult.result.articulation.score || 0;
+
+  // Ambil data video
+  const facial = videoResult.result.analysis_results.facial_expression;
+  const gesture = videoResult.result.analysis_results.gesture;
+  const eye = videoResult.result.analysis_results.eye_contact;
+
+  // Ambil data audio
+  const filler = audioResult.result.articulation.filler_count;
+  const hasProfanity = audioResult.result.profanity.has_profanity;
+  const hasLongPause = audioResult.result.tempo.has_long_pause;
+
+  // Helper untuk kontak mata
+  const calcKontakMata = (gaze) => {
+    if (gaze <= 5) return 5;
+    if (gaze <= 8) return 4;
+    if (gaze <= 10) return 3;
+    if (gaze <= 12) return 2;
+    return 1;
+  };
+
+  // =======================
+  // 🚀 LEVEL 1
+  // =======================
+  if (level === 1) {
+    const jeda = hasLongPause ? 0 : 1;
+    const first_impression = facial.first_impression.expression === "Happy" ? 1 : 0;
+    const ekspresi = facial.dominant_expression === "Happy" ? 1 : 0;
+    const gesturScore =
+      gesture.score >= 7 && !gesture.details.nervous_gestures_detected ? 1 : 0;
+    const kata_pengisi = filler > 0 ? -0.25 : 1;
+    const kata_tidak_senonoh = hasProfanity ? -5 : 0;
+
+    resp.details = {
+      tempo,
+      artikulasi,
+      jeda,
+      first_impression,
+      ekspresi,
+      gestur: gesturScore,
+      kata_pengisi,
+      kata_tidak_senonoh,
+      point_earned: tempo + artikulasi + jeda + first_impression + ekspresi + gesturScore + kata_pengisi + kata_tidak_senonoh
+    };
+
+    return resp;
+  }
+
+  // =======================
+  // 🚀 LEVEL 2
+  // =======================
+  if (level === 2) {
+    const kontak_mata = calcKontakMata(eye.summary.gaze_away_time);
+    const jeda = hasLongPause ? -1 : 1;
+    const first_impression =
+      facial.first_impression.expression === "Happy" ? 1 : -1;
+    const ekspresi = facial.dominant_expression === "Happy" ? 1 : 0;
+    const gesturScore =
+      gesture.score >= 7 && !gesture.details.nervous_gestures_detected ? 1 : -1;
+    const kata_pengisi = filler > 0 ? -0.5 : 1;
+    const kata_tidak_senonoh = hasProfanity ? -5 : 0;
+
+    resp.details = {
+      tempo,
+      artikulasi,
+      kontak_mata,
+      jeda,
+      first_impression,
+      ekspresi,
+      gestur: gesturScore,
+      kata_pengisi,
+      kata_tidak_senonoh,
+      point_earned: tempo + artikulasi + kontak_mata + jeda + first_impression + ekspresi + gesturScore + kata_pengisi + kata_tidak_senonoh
+    };
+
+    return resp;
+  }
+
+  // =======================
+  // 🚀 LEVEL 3
+  // =======================
+  if (level === 3) {
+    const kontak_mata = calcKontakMata(eye.summary.gaze_away_time);
+    const kesesuaian_topik = audioResult.result.keywords?.score || 0;
+
+    const jeda = hasLongPause ? -2 : 1;
+    const first_impression =
+      facial.first_impression.expression === "Happy" ? 1 : -2;
+    const ekspresi = facial.dominant_expression === "Happy" ? 2 : -1;
+    const gesturScore =
+      gesture.score >= 7 && !gesture.details.nervous_gestures_detected ? 0 : -2;
+    const kata_pengisi = filler > 0 ? -1 : 1;
+    const kata_tidak_senonoh = hasProfanity ? -5 : 0;
+
+    resp.details = {
+      tempo,
+      artikulasi,
+      kontak_mata,
+      kesesuaian_topik,
+      jeda,
+      first_impression,
+      ekspresi,
+      gestur: gesturScore,
+      kata_pengisi,
+      kata_tidak_senonoh,
+      point_earned: tempo + artikulasi + kontak_mata + kesesuaian_topik + jeda + first_impression + ekspresi + gesturScore + kata_pengisi + kata_tidak_senonoh
+    };
+
+    return resp;
+  }
+
+  // =======================
+  // 🚀 LEVEL 4
+  // =======================
+  if (level === 4) {
+    const kontak_mata = calcKontakMata(eye.summary.gaze_away_time);
+    const kesesuaian_topik = audioResult.result.keywords?.score || 0;
+
+    const jeda = hasLongPause ? -2 : 1;
+    const first_impression =
+      facial.first_impression.expression === "Happy" ? 1 : -3;
+    const ekspresi = facial.dominant_expression === "Happy" ? 2 : -2;
+    const gesturScore =
+      gesture.score >= 7 && !gesture.details.nervous_gestures_detected ? 0 : -2;
+    const kata_pengisi = filler > 0 ? -1.5 : 1;
+    const kata_tidak_senonoh = hasProfanity ? -5 : 0;
+
+    resp.details = {
+      tempo,
+      artikulasi,
+      kontak_mata,
+      kesesuaian_topik,
+      jeda,
+      first_impression,
+      ekspresi,
+      gestur: gesturScore,
+      kata_pengisi,
+      kata_tidak_senonoh,
+      point_earned: tempo + artikulasi + kontak_mata + kesesuaian_topik + jeda + first_impression + ekspresi + gesturScore + kata_pengisi + kata_tidak_senonoh
+    };
+
+    return resp;
+  }
+
+  // =======================
+  // 🚀 LEVEL 5
+  // =======================
+  if (level === 5) {
+    const kontak_mata = calcKontakMata(eye.summary.gaze_away_time);
+    const kesesuaian_topik = audioResult.result.keywords?.score || 0;
+    const struktur = audioResult.result.structure?.score || 0;
+
+    const jeda = hasLongPause ? -5 : 3;
+    const first_impression =
+      facial.first_impression.expression === "Happy" ? 1 : -5;
+    const ekspresi = facial.dominant_expression === "Happy" ? 5 : -5;
+    const gesturScore =
+      gesture.score >= 7 && !gesture.details.nervous_gestures_detected ? 0 : -5;
+    const kata_pengisi = filler > 0 ? -2 : 1;
+    const kata_tidak_senonoh = hasProfanity ? -5 : 0;
+
+    resp.details = {
+      tempo,
+      artikulasi,
+      kontak_mata,
+      kesesuaian_topik,
+      struktur,
+      jeda,
+      first_impression,
+      ekspresi,
+      gestur: gesturScore,
+      kata_pengisi,
+      kata_tidak_senonoh,
+      point_earned: tempo + artikulasi + kontak_mata + kesesuaian_topik + struktur + jeda + first_impression + ekspresi + gesturScore + kata_pengisi + kata_tidak_senonoh
+    };
+
+    return resp;
+  }
+
+  return resp;
+}
+
 class PodiumController {
   static async getCategories(req, res) {
     try {
@@ -176,7 +365,7 @@ class PodiumController {
       const userId = req.user.user_id;
       let level = 1;
 
-      const user = await Mentee.findByPk(userId);
+      const user = await Mentee.findOne({ where: { user_id: userId } });
 
       console.log(user);
 
@@ -471,6 +660,8 @@ class PodiumController {
         result_ai: JSON.stringify(suggestions)
       });
 
+      const responseDetail = buildLevelResponse(level, audioResult, videoResult);
+
       await Mentee.update(
         {
           point: sequelize.literal(`point + ${pointEarned}`),
@@ -493,14 +684,14 @@ class PodiumController {
         suggestionResults = null;
       }
 
-      const cleaned = newProgressPodium.toJSON();
-      delete cleaned.result_ai;
+      // const cleaned = newProgressPodium.toJSON();
+      // delete cleaned.result_ai;
 
       res.json({
         success: true,
         message: "Hasil podium session submitted successfully",
         data: {
-          updatedData: cleaned,
+          updatedData: responseDetail,
           suggestions: suggestionResults
         }
       });
