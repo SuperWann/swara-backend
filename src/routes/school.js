@@ -22,4 +22,10 @@ router.post('/mentors', authenticateToken, validateAddMentor, schoolController.a
 // Get all mentors in school (for school admin)
 router.get('/mentors', authenticateToken, schoolController.getSchoolMentors);
 
+// Update mentor/teacher
+router.put('/mentors/:mentorId', authenticateToken, schoolController.updateMentor);
+
+// Delete mentor/teacher
+router.delete('/mentors/:mentorId', authenticateToken, schoolController.deleteMentor);
+
 module.exports = router;

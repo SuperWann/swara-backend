@@ -478,3 +478,166 @@ exports.getSchoolMentors = async (req, res) => {
     });
   }
 };
+
+exports.updateMentor = async (req, res) => {
+  try {
+    const { mentorId } = req.params;
+    const {
+      full_name,
+      email,
+      phone_number,
+      password,
+      status
+    } = req.body;
+
+    const adminUser = req.user;
+
+    if (!adminUser.school_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not associated with any school'
+      });
+    }
+
+    const school = await School.findByPk(adminUser.school_id);
+    if (!school) {
+      return res.status(404).json({
+        success: false,
+        message: 'School not found'
+      });
+    }
+
+    const mentor = await User.findOne({
+      where: { 
+        user_id: mentorId,
+        school_id: adminUser.school_id 
+      },
+      include: [{
+        model: Role,
+        as: 'role',
+        where: { role_name: 'mentor' }
+      }]
+    });
+
+    if (!mentor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Mentor not found or not belongs to your school'
+      });
+    }
+
+    if (email && email !== mentor.email) {
+      const existingUser = await User.findOne({ 
+        where: { 
+          email,
+          user_id: { [Op.ne]: mentorId }
+        } 
+      });
+      
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already used by another user'
+        });
+      }
+    }
+
+    const updateData = {};
+    if (full_name) updateData.full_name = full_name;
+    if (email) updateData.email = email;
+    if (phone_number) updateData.phone_number = phone_number;
+    if (password) updateData.password = password;
+    if (status && ['aktif', 'nonaktif'].includes(status)) updateData.status = status;
+
+    await mentor.update(updateData);
+
+    res.json({
+      success: true,
+      message: 'Mentor updated successfully',
+      data: {
+        mentor_id: mentor.user_id,
+        full_name: mentor.full_name,
+        email: mentor.email,
+        phone_number: mentor.phone_number,
+        status: mentor.status
+      }
+    });
+  } catch (error) {
+    console.error('Error updating mentor:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update mentor',
+      error: error.message
+    });
+  }
+};
+
+exports.deleteMentor = async (req, res) => {
+  try {
+    const { mentorId } = req.params;
+    const adminUser = req.user;
+
+    if (!adminUser.school_id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not associated with any school'
+      });
+    }
+
+    const school = await School.findByPk(adminUser.school_id);
+    if (!school) {
+      return res.status(404).json({
+        success: false,
+        message: 'School not found'
+      });
+    }
+
+    const mentor = await User.findOne({
+      where: { 
+        user_id: mentorId,
+        school_id: adminUser.school_id 
+      },
+      include: [{
+        model: Role,
+        as: 'role',
+        where: { role_name: 'mentor' }
+      }]
+    });
+
+    if (!mentor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Mentor not found or not belongs to your school'
+      });
+    }
+
+    const activeMentoringSessions = await mentor.countMentoringSessions({
+      where: {
+        status: { [Op.in]: ['pending', 'scheduled', 'ongoing'] }
+      }
+    });
+
+    if (activeMentoringSessions > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete mentor with ${activeMentoringSessions} active mentoring session(s). Please complete or cancel them first.`
+      });
+    }
+
+    const mentorName = mentor.full_name;
+    
+    await mentor.destroy();
+
+    res.json({
+      success: true,
+      message: `Mentor ${mentorName} deleted successfully`
+    });
+  } catch (error) {
+    console.error('Error deleting mentor:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete mentor',
+      error: error.message
+    });
+  }
+};
