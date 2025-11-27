@@ -19,6 +19,9 @@ router.delete('/mentoring/start-end/:id', authenticateToken, MentorController.de
 // Mentoring sessions
 router.get('/:id/sessions', authenticateToken, MentorController.getMentorSessions);
 router.get('/session/:sessionId', authenticateToken, MentorController.getSessionDetail);
+router.get('/:id/sessions/today', MentorController.getTodayMentorSessions);
+
+
 
 
 module.exports = router;

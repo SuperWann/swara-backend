@@ -356,6 +356,104 @@ class MentorController {
     }
   }
 
+  static async getTodayMentorSessions(req, res) {
+    try {
+      const mentorUserId = req.params.id;
+
+      console.log('Getting today sessions for mentor:', mentorUserId);
+
+      // Tentukan rentang waktu hari ini
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const mentoringSessions = await Mentoring.findAll({
+        where: {
+          mentor_user_id: mentorUserId,
+          jadwal: {
+            [Op.between]: [startOfDay, endOfDay]
+          }
+        },
+        include: [
+          {
+            model: User,
+            as: 'mentee',
+            attributes: ['user_id', 'full_name', 'email', 'phone_number']
+          },
+          {
+            model: MentoringPayment,
+            as: 'payment',
+            attributes: [
+              'payment_id', 'order_id', 'payment_url',
+              'transaction_status', 'gross_amount',
+              'payment_type', 'paid_at'
+            ],
+            required: false
+          }
+        ],
+        order: [['jadwal', 'ASC']]
+      });
+
+      console.log('Found today sessions:', mentoringSessions.length);
+
+      const now = new Date();
+
+      const formattedSessions = mentoringSessions.map(session => {
+        const sessionDate = new Date(session.jadwal);
+        const isDone = sessionDate < now;
+
+        return {
+          mentoring_id: session.mentoring_id,
+
+          mentee: {
+            user_id: session.mentee?.user_id,
+            full_name: session.mentee?.full_name,
+            email: session.mentee?.email,
+            phone_number: session.mentee?.phone_number
+          },
+
+          jadwal: session.jadwal,
+          tujuan_mentoring: session.tujuan_mentoring,
+          metode_mentoring_id: session.metode_mentoring_id,
+          status: isDone ? 'selesai' : 'terjadwal',
+
+          payment_status: session.payment?.transaction_status || 'pending',
+          is_paid: ['settlement', 'capture'].includes(session.payment?.transaction_status),
+
+          formatted_date: sessionDate.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          }),
+          formatted_time: sessionDate.toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        };
+      });
+
+      res.json({
+        success: true,
+        message: 'Today mentoring sessions retrieved successfully',
+        data: {
+          sessions: formattedSessions,
+          count: formattedSessions.length
+        }
+      });
+
+    } catch (error) {
+      console.error('Get today mentor sessions error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get today sessions',
+        error: error.message
+      });
+    }
+  }
+
+
   static async getSessionDetail(req, res) {
     try {
       const { sessionId } = req.params;
