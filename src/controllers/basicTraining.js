@@ -210,20 +210,9 @@ class BasicTrainingController {
 
       const levelsWithStatus = mode.levels.map((level, index) => {
         const levelData = level.toJSON();
-        let isUnlocked = false;
         let isCompleted = false;
         let bestScore = 0;
         let attempts = 0;
-
-        if (levelData.level === 1) {
-          isUnlocked = true;
-        } else if (index > 0) {
-          const prevLevel = mode.levels[index - 1];
-          const prevScore = scoresMap[prevLevel.basic_training_level_id];
-          if (prevScore && prevScore.best_score >= prevLevel.minimum_score) {
-            isUnlocked = true;
-          }
-        }
 
         const currentScore = scoresMap[levelData.basic_training_level_id];
         if (currentScore) {
@@ -234,7 +223,7 @@ class BasicTrainingController {
 
         return {
           ...levelData,
-          is_unlocked: isUnlocked,
+          is_unlocked: true,
           is_completed: isCompleted,
           user_progress: {
             best_score: bestScore,
@@ -289,46 +278,6 @@ class BasicTrainingController {
           success: false,
           message: "Training level not found or inactive",
         });
-      }
-
-      if (level.level > 1) {
-        const prevLevel = await BasicTrainingLevel.findOne({
-          where: {
-            basic_training_mode_id: level.basic_training_mode_id,
-            level: level.level - 1,
-          },
-          transaction,
-        });
-
-        if (prevLevel) {
-          const prevBestScore = await BasicTrainingSession.findOne({
-            where: {
-              user_id: userId,
-              basic_training_level_id: prevLevel.basic_training_level_id,
-              status: "completed",
-            },
-            attributes: [
-              [sequelize.fn("MAX", sequelize.col("total_score")), "best_score"],
-            ],
-            raw: true,
-            transaction,
-          });
-
-          if (
-            !prevBestScore ||
-            parseFloat(prevBestScore.best_score || 0) < prevLevel.minimum_score
-          ) {
-            await transaction.rollback();
-            return res.status(403).json({
-              success: false,
-              message: "Previous level must be completed first",
-              data: {
-                required_level: prevLevel.level,
-                required_score: prevLevel.minimum_score,
-              },
-            });
-          }
-        }
       }
 
       const session = await BasicTrainingSession.create(
