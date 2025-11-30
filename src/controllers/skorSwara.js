@@ -929,6 +929,7 @@ class SkorSwaraController {
         message: "Video and audio processed successfully",
         data: {
           updatedData: responseDetail,
+          video_url: videoUrl,
           suggestions: suggestions
         },
       });
