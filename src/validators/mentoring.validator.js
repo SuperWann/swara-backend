@@ -8,14 +8,11 @@ exports.scheduleMentoringValidation = [
   
   body('jadwal')
     .notEmpty().withMessage('Schedule date is required')
-    .isISO8601().withMessage('Schedule must be a valid date')
-    .custom((value) => {
-      const scheduleDate = new Date(value);
-      if (scheduleDate < new Date()) {
-        throw new Error('Schedule date must be in the future');
-      }
-      return true;
-    }),
+    .isISO8601().withMessage('Schedule must be a valid date (YYYY-MM-DD)'),
+
+  body('jam')
+    .notEmpty().withMessage('Time is required')
+    .matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Time must be in HH:MM or HH:MM:SS format'),
   
   body('tujuan_mentoring')
     .notEmpty().withMessage('Mentoring purpose is required')

@@ -8,6 +8,8 @@ const Mentoring = db.Mentoring;
 const MetodeMentoring = db.MetodeMentoring;
 const MentoringPayment = db.MentoringPayment;
 const MentorActivity = db.MentorActivity;
+const MentoringDate = db.MentoringDate;
+const StartEnd = db.StartEnd;
 
 /**
  * Get semua mentor
@@ -124,12 +126,23 @@ exports.getMentorDetail = async (req, res) => {
       }]
     });
 
+    const availability = await MentoringDate.findAll({
+      where: { user_id: mentor.user.user_id },
+      include: [{
+        model: StartEnd,
+        as: 'time_slots',
+        required: false
+      }],
+      order: [['date', 'ASC']]
+    });
+
     res.status(200).json({
       success: true,
       message: 'Mentor detail retrieved successfully',
       data: {
         ...mentor.toJSON(),
-        // completed_sessions: completedSessions
+        // completed_sessions: completedSessions,
+        availability
       }
     });
   } catch (error) {
@@ -150,9 +163,8 @@ exports.scheduleMentoring = async (req, res) => {
 
   try {
     const userId = req.user.user_id;
-    const { mentor_user_id, jadwal, tujuan_mentoring, metode_mentoring_id } = req.body;
+    const { mentor_user_id, jadwal, jam, tujuan_mentoring, metode_mentoring_id } = req.body;
 
-    // Validate mentor exists
     const mentor = await MentorProfile.findOne({
       where: {
         user_id: mentor_user_id
@@ -172,8 +184,8 @@ exports.scheduleMentoring = async (req, res) => {
       });
     }
 
-    // Validate jadwal tidak boleh di masa lalu
-    const scheduledDate = new Date(jadwal);
+    const scheduledDateTimeString = `${jadwal}T${jam || '00:00:00'}`;
+    const scheduledDate = new Date(scheduledDateTimeString);
     if (scheduledDate < new Date()) {
       await transaction.rollback();
       return res.status(400).json({
@@ -182,14 +194,49 @@ exports.scheduleMentoring = async (req, res) => {
       });
     }
 
-    // Check mentor availability at that time
+    const dateOnly = new Date(scheduledDate);
+    dateOnly.setHours(0, 0, 0, 0);
+
+    const mentoringDate = await MentoringDate.findOne({
+      where: {
+        user_id: mentor_user_id,
+        date: dateOnly
+      }
+    });
+
+    if (!mentoringDate) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Mentor is not available on this date. Please choose another date.'
+      });
+    }
+
+    const timeString = scheduledDate.toTimeString().slice(0, 8);
+
+    const availableSlot = await StartEnd.findOne({
+      where: {
+        mentoring_date_id: mentoringDate.mentoring_date_id,
+        start: { [Op.lte]: timeString },
+        end: { [Op.gt]: timeString }
+      }
+    });
+
+    if (!availableSlot) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Selected time is not in mentor\'s available slots. Please choose another time.'
+      });
+    }
+
     const existingSchedule = await Mentoring.findOne({
       where: {
         mentor_user_id,
         jadwal: {
           [Op.between]: [
-            new Date(scheduledDate.getTime() - 60 * 60 * 1000), // 1 hour before
-            new Date(scheduledDate.getTime() + 60 * 60 * 1000)  // 1 hour after
+            new Date(scheduledDate.getTime() - 60 * 60 * 1000),
+            new Date(scheduledDate.getTime() + 60 * 60 * 1000)
           ]
         }
       }
@@ -203,7 +250,6 @@ exports.scheduleMentoring = async (req, res) => {
       });
     }
 
-    // Validate metode mentoring
     const metodeMentoring = await MetodeMentoring.findByPk(metode_mentoring_id);
     if (!metodeMentoring) {
       await transaction.rollback();
@@ -213,12 +259,10 @@ exports.scheduleMentoring = async (req, res) => {
       });
     }
 
-    // Get user details
     const user = await User.findByPk(userId, {
       attributes: ['full_name', 'email', 'phone_number']
     });
 
-    // Create mentoring record
     const mentoring = await Mentoring.create({
       jadwal: scheduledDate,
       tujuan_mentoring,
@@ -227,11 +271,9 @@ exports.scheduleMentoring = async (req, res) => {
       mentee_user_id: userId
     }, { transaction });
 
-    // Create payment
     const orderId = `MENTORING-${mentoring.mentoring_id}-${Date.now()}`;
     const grossAmount = parseFloat(mentor.fee);
 
-    // Create payment in Midtrans
     const paymentTransaction = await midtransService.createTransaction({
       orderId,
       grossAmount,
@@ -249,7 +291,6 @@ exports.scheduleMentoring = async (req, res) => {
       }]
     });
 
-    // Save payment record
     const payment = await MentoringPayment.create({
       mentoring_id: mentoring.mentoring_id,
       order_id: orderId,
@@ -299,12 +340,10 @@ exports.getUserMentoringSessions = async (req, res) => {
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // Build where clause
     const whereClause = {
       mentee_user_id: userId
     };
 
-    // Filter by status
     let paymentWhere = {};
     if (status === 'paid') {
       paymentWhere.transaction_status = 'settlement';
@@ -348,7 +387,6 @@ exports.getUserMentoringSessions = async (req, res) => {
 
     const totalPages = Math.ceil(count / parseInt(limit));
 
-    // Categorize sessions
     const now = new Date();
     const categorizedSessions = sessions.map(session => {
       const sessionDate = new Date(session.jadwal);
@@ -444,7 +482,6 @@ exports.getMentoringDetail = async (req, res) => {
       });
     }
 
-    // Determine session status
     const now = new Date();
     const sessionDate = new Date(session.jadwal);
     let sessionStatus = 'scheduled';
@@ -461,7 +498,6 @@ exports.getMentoringDetail = async (req, res) => {
       sessionStatus = 'payment_failed';
     }
 
-    // Tambahkan role user dalam response
     const userRole = session.mentee_user_id === userId ? 'mentee' : 'mentor';
 
     res.status(200).json({
@@ -470,7 +506,7 @@ exports.getMentoringDetail = async (req, res) => {
       data: {
         ...session.toJSON(),
         session_status: sessionStatus,
-        user_role: userRole // Tambahkan informasi role user
+        user_role: userRole
       }
     });
   } catch (error) {
@@ -492,7 +528,6 @@ exports.handlePaymentNotification = async (req, res) => {
 
     const notification = req.body;
 
-    // Validate required fields
     if (!notification.order_id || !notification.transaction_status) {
       console.error('Invalid notification data:', notification);
       return res.status(400).json({
@@ -501,7 +536,6 @@ exports.handlePaymentNotification = async (req, res) => {
       });
     }
 
-    // Detect if this is manual testing (no real Midtrans transaction)
     const isManualTest = !notification.signature_key ||
       notification.signature_key === 'test-signature' ||
       process.env.MIDTRANS_SKIP_VERIFICATION === 'true';
@@ -510,12 +544,10 @@ exports.handlePaymentNotification = async (req, res) => {
       console.log('🧪 TESTING MODE: Manual webhook test detected');
     }
 
-    // Handle notification dari Midtrans
     const statusResponse = await midtransService.handleNotification(notification, isManualTest);
 
     console.log('Status response processed:', statusResponse);
 
-    // Find payment record - use findByPk or simple where
     const payment = await MentoringPayment.findOne({
       where: {
         order_id: statusResponse.orderId
@@ -532,7 +564,6 @@ exports.handlePaymentNotification = async (req, res) => {
       });
     }
 
-    // Get mentoring details separately
     const mentoring = await Mentoring.findOne({
       where: {
         mentoring_id: payment.mentoring_id
@@ -551,7 +582,6 @@ exports.handlePaymentNotification = async (req, res) => {
       ]
     });
 
-    // Update payment status
     const updateData = {
       transaction_status: statusResponse.transactionStatus,
       payment_type: statusResponse.paymentType,
@@ -559,10 +589,8 @@ exports.handlePaymentNotification = async (req, res) => {
       fraud_status: statusResponse.fraudStatus
     };
 
-    // Handle different transaction statuses
     if (statusResponse.transactionStatus === 'settlement' ||
       (statusResponse.transactionStatus === 'capture' && statusResponse.fraudStatus === 'accept')) {
-      // Payment successful
       updateData.paid_at = new Date();
       updateData.transaction_status = 'settlement';
 
@@ -575,9 +603,6 @@ exports.handlePaymentNotification = async (req, res) => {
           mentor: mentoring.mentor ? mentoring.mentor.full_name : 'N/A',
           jadwal: mentoring.jadwal
         });
-
-        // TODO: Send email notification to mentee and mentor
-        // TODO: Add to calendar or schedule notification
       }
 
     } else if (statusResponse.transactionStatus === 'pending') {
@@ -592,7 +617,6 @@ exports.handlePaymentNotification = async (req, res) => {
       console.log('↩️ Payment REFUNDED for order:', statusResponse.orderId);
     }
 
-    // Update payment record
     await payment.update(updateData);
 
     console.log('Payment notification processed successfully:', {
@@ -601,7 +625,6 @@ exports.handlePaymentNotification = async (req, res) => {
       payment_id: payment.payment_id
     });
 
-    // Midtrans expects 200 OK response
     res.status(200).json({
       success: true,
       message: 'Notification received successfully'
@@ -628,7 +651,6 @@ exports.checkPaymentStatus = async (req, res) => {
     const { mentoringId } = req.params;
     const userId = req.user.user_id;
 
-    // Verify user owns this mentoring
     const mentoring = await Mentoring.findOne({
       where: {
         mentoring_id: mentoringId,
@@ -653,12 +675,10 @@ exports.checkPaymentStatus = async (req, res) => {
 
     console.log('Checking payment status for order:', mentoring.payment.order_id);
 
-    // Check status from Midtrans
     const status = await midtransService.checkTransactionStatus(mentoring.payment.order_id);
 
     console.log('Midtrans status response:', status);
 
-    // Update local payment record if status changed
     if (status.transactionStatus !== mentoring.payment.transaction_status) {
       const updateData = {
         transaction_status: status.transactionStatus,
