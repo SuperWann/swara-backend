@@ -21,6 +21,12 @@ router.get('/:id/sessions', authenticateToken, MentorController.getMentorSession
 router.get('/session/:sessionId', authenticateToken, MentorController.getSessionDetail);
 router.get('/:id/sessions/today', MentorController.getTodayMentorSessions);
 
+// Point history
+router.get('/point-history/:id', authenticateToken, MentorController.getPointHistory);
+router.get('/average-aspects/:id', authenticateToken, MentorController.getAverageAspects);
+router.get('/point-summary/:id', authenticateToken, MentorController.getPointSummary);
+router.get('/category-summary/:id', authenticateToken, MentorController.getCategorySummary);
+
 
 
 
