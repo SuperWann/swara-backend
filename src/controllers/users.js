@@ -84,7 +84,7 @@ class UserController {
       });
 
       // Create mentee
-      const mentee = await Mentee.create({ user_id: user.user_id, point: 0, exercise_count: 0, minute_count: 0, token: 6 });
+      const mentee = await Mentee.create({ user_id: user.user_id, point: 0, exercise_count: 0, minute_count: 0, token_count: 6 });
 
       // Generate tokens
       const accessToken = generateAccessToken(user);
